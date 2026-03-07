@@ -69,20 +69,30 @@ object SmsRepository {
         val list = mutableListOf<SmsConversation>()
         val uri = Uri.parse("content://mms-sms/conversations?simple=true")
         val cursor = try {
-            cr.query(uri, null, null, null, "date DESC LIMIT 100")
+            cr.query(uri, null, null, null, "date DESC")
         } catch (t: Throwable) {
             Log.w(TAG, "queryConversations failed", t)
             null
         } ?: return list
         cursor.use { c ->
-            while (c.moveToNext()) {
+            var count = 0
+            while (c.moveToNext() && count < 100) {
+                count++
                 try {
-                    val threadId = c.getLong(c.getColumnIndexOrThrow("_id"))
-                    val address = c.getString(c.getColumnIndex("address").takeIf { it >= 0 } ?: c.getColumnIndex("recipient_ids")) ?: ""
-                    val snippet = c.getString(c.getColumnIndex("snippet").takeIf { it >= 0 } ?: -1) ?: ""
-                    val date = c.getLong(c.getColumnIndex("date").takeIf { it >= 0 } ?: -1)
-                    val unread = c.getInt(c.getColumnIndex("unread_count").takeIf { it >= 0 } ?: -1)
-                    val msgCount = c.getInt(c.getColumnIndex("message_count").takeIf { it >= 0 } ?: -1)
+                    val idIdx = c.getColumnIndex("_id")
+                    if (idIdx < 0) continue
+                    val threadId = c.getLong(idIdx)
+                    val addrIdx = c.getColumnIndex("address").takeIf { it >= 0 }
+                        ?: c.getColumnIndex("recipient_ids").takeIf { it >= 0 }
+                    val address = if (addrIdx != null) c.getString(addrIdx) ?: "" else ""
+                    val snippetIdx = c.getColumnIndex("snippet")
+                    val snippet = if (snippetIdx >= 0) c.getString(snippetIdx) ?: "" else ""
+                    val dateIdx = c.getColumnIndex("date")
+                    val date = if (dateIdx >= 0) c.getLong(dateIdx) else 0L
+                    val unreadIdx = c.getColumnIndex("unread_count")
+                    val unread = if (unreadIdx >= 0) c.getInt(unreadIdx) else 0
+                    val msgCountIdx = c.getColumnIndex("message_count")
+                    val msgCount = if (msgCountIdx >= 0) c.getInt(msgCountIdx) else 0
                     list.add(SmsConversation(threadId, address, snippet, date, unread, msgCount))
                 } catch (t: Throwable) {
                     Log.w(TAG, "row parse failed", t)
@@ -100,25 +110,41 @@ object SmsRepository {
                 arrayOf("_id", "thread_id", "address", "body", "date", "type", "read", "status"),
                 "thread_id=?",
                 arrayOf(threadId.toString()),
-                "date ASC LIMIT $PAGE_SIZE"
+                "date ASC"
             )
         } catch (t: Throwable) {
             Log.w(TAG, "queryMessages failed", t)
             null
         } ?: return list
         cursor.use { c ->
-            while (c.moveToNext()) {
+            // Limit page size to avoid OOM
+            val maxRows = minOf(c.count, PAGE_SIZE)
+            // If there are more than PAGE_SIZE rows, skip to the last PAGE_SIZE
+            val skipRows = if (c.count > PAGE_SIZE) c.count - PAGE_SIZE else 0
+            if (skipRows > 0) c.moveToPosition(skipRows - 1)
+            var count = 0
+            while (c.moveToNext() && count < maxRows) {
+                count++
                 try {
+                    val idIdx = c.getColumnIndex("_id")
+                    val threadIdx = c.getColumnIndex("thread_id")
+                    val addrIdx = c.getColumnIndex("address")
+                    val bodyIdx = c.getColumnIndex("body")
+                    val dateIdx = c.getColumnIndex("date")
+                    val typeIdx = c.getColumnIndex("type")
+                    val readIdx = c.getColumnIndex("read")
+                    val statusIdx = c.getColumnIndex("status")
+                    if (idIdx < 0 || bodyIdx < 0 || dateIdx < 0) continue
                     list.add(
                         SmsMessage(
-                            id = c.getLong(c.getColumnIndexOrThrow("_id")),
-                            threadId = c.getLong(c.getColumnIndexOrThrow("thread_id")),
-                            address = c.getString(c.getColumnIndexOrThrow("address")) ?: "",
-                            body = c.getString(c.getColumnIndexOrThrow("body")) ?: "",
-                            date = c.getLong(c.getColumnIndexOrThrow("date")),
-                            type = c.getInt(c.getColumnIndexOrThrow("type")),
-                            read = c.getInt(c.getColumnIndexOrThrow("read")) == 1,
-                            status = c.getInt(c.getColumnIndexOrThrow("status"))
+                            id = c.getLong(idIdx),
+                            threadId = if (threadIdx >= 0) c.getLong(threadIdx) else threadId,
+                            address = if (addrIdx >= 0) c.getString(addrIdx) ?: "" else "",
+                            body = c.getString(bodyIdx) ?: "",
+                            date = c.getLong(dateIdx),
+                            type = if (typeIdx >= 0) c.getInt(typeIdx) else 1,
+                            read = if (readIdx >= 0) c.getInt(readIdx) == 1 else false,
+                            status = if (statusIdx >= 0) c.getInt(statusIdx) else -1
                         )
                     )
                 } catch (t: Throwable) {

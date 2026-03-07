@@ -213,7 +213,12 @@ class MainActivity : ComponentActivity() {
             val roleManager = getSystemService(RoleManager::class.java) ?: return false
             roleManager.isRoleHeld(RoleManager.ROLE_SMS)
         } else {
-            false
+            // Pre-Q: check via Telephony.Sms.getDefaultSmsPackage
+            try {
+                android.provider.Telephony.Sms.getDefaultSmsPackage(this) == packageName
+            } catch (_: Throwable) {
+                false
+            }
         }
     }
 

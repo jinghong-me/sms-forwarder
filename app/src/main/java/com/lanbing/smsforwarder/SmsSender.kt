@@ -46,8 +46,15 @@ object SmsSender {
             if (parts.size <= 1) {
                 manager.sendTextMessage(toNumber, null, body, sentPi, deliveredPi)
             } else {
-                val sentPis = ArrayList<PendingIntent>(parts.size).also { list -> repeat(parts.size) { list.add(sentPi) } }
-                val deliveredPis = ArrayList<PendingIntent>(parts.size).also { list -> repeat(parts.size) { list.add(deliveredPi) } }
+                // Each part needs a unique PendingIntent to properly track per-part delivery status
+                val sentPis = ArrayList<PendingIntent>(parts.size)
+                val deliveredPis = ArrayList<PendingIntent>(parts.size)
+                repeat(parts.size) {
+                    val partSentCode = requestCodeCounter.getAndIncrement()
+                    val partDeliveredCode = requestCodeCounter.getAndIncrement()
+                    sentPis.add(PendingIntent.getBroadcast(context, partSentCode, sentIntent, piFlags))
+                    deliveredPis.add(PendingIntent.getBroadcast(context, partDeliveredCode, deliveredIntent, piFlags))
+                }
                 manager.sendMultipartTextMessage(toNumber, null, parts, sentPis, deliveredPis)
             }
         } catch (t: Throwable) {

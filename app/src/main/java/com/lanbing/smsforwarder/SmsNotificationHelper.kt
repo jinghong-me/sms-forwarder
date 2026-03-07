@@ -11,7 +11,7 @@ import androidx.core.app.NotificationManagerCompat
 
 object SmsNotificationHelper {
     const val CHANNEL_ID_SMS = "sms_incoming"
-    private var notifId = 2000
+    private val notifIdCounter = java.util.concurrent.atomic.AtomicInteger(2000)
 
     fun createIncomingChannel(context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -54,7 +54,7 @@ object SmsNotificationHelper {
             .build()
 
         try {
-            NotificationManagerCompat.from(context).notify(notifId++, notification)
+            NotificationManagerCompat.from(context).notify(notifIdCounter.getAndIncrement(), notification)
         } catch (_: SecurityException) { }
     }
 
