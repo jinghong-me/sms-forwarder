@@ -54,6 +54,90 @@ class SmsReceiver : BroadcastReceiver() {
             val timestamp: Long,
             val retryCount: Int = 0
         )
+
+        // 供 NetworkChangeReceiver 调用，重试失败的消息
+        @JvmStatic
+        fun retryFailedMessages(context: Context) {
+            synchronized(failedMessageLock) {
+                if (failedMessages.isEmpty()) return
+
+                val toRetry = failedMessages.filter { it.retryCount < 3 }
+                failedMessages.clear()
+
+                toRetry.forEach { failed ->
+                    executor.execute {
+                        try {
+                            val success = sendToWebhook(failed.channel.target, failed.sender, failed.content, failed.channel.type)
+                            if (success) {
+                                LogStore.append(context, "重试转发成功 -> ${failed.channel.name}")
+                            } else {
+                                if (failed.retryCount + 1 < 3) {
+                                    failedMessages.add(failed.copy(retryCount = failed.retryCount + 1))
+                                } else {
+                                    LogStore.append(context, "重试转发失败（已达最大次数）-> ${failed.channel.name}")
+                                }
+                            }
+                        } catch (e: Exception) {
+                            Log.e(TAG, "retry failed", e)
+                        }
+                    }
+                }
+            }
+        }
+
+        private fun sendToWebhook(webhookUrl: String, sender: String, content: String, type: ChannelType): Boolean {
+            val json = when (type) {
+                ChannelType.FEISHU -> buildFeishuMessage(sender, content)
+                ChannelType.WECHAT -> buildWechatMessage(sender, content)
+                ChannelType.DINGTALK -> buildDingtalkMessage(sender, content)
+                ChannelType.GENERIC_WEBHOOK -> buildGenericMessage(sender, content)
+            }
+
+            val body = json.toString().toRequestBody("application/json; charset=utf-8".toMediaType())
+            val req = Request.Builder()
+                .url(webhookUrl)
+                .post(body)
+                .build()
+
+            client.newCall(req).execute().use { resp ->
+                return resp.isSuccessful
+            }
+        }
+
+        private fun buildWechatMessage(sender: String, content: String): JSONObject {
+            val json = JSONObject()
+            json.put("msgtype", "text")
+            val text = JSONObject()
+            text.put("content", "来自: $sender\n$content")
+            json.put("text", text)
+            return json
+        }
+
+        private fun buildDingtalkMessage(sender: String, content: String): JSONObject {
+            val json = JSONObject()
+            json.put("msgtype", "text")
+            val text = JSONObject()
+            text.put("content", "【短信转发】\n来自: $sender\n$content")
+            json.put("text", text)
+            return json
+        }
+
+        private fun buildFeishuMessage(sender: String, content: String): JSONObject {
+            val json = JSONObject()
+            json.put("msg_type", "text")
+            val text = JSONObject()
+            text.put("text", "【短信转发】\n来自: $sender\n$content")
+            json.put("content", text)
+            return json
+        }
+
+        private fun buildGenericMessage(sender: String, content: String): JSONObject {
+            val json = JSONObject()
+            json.put("sender", sender)
+            json.put("content", content)
+            json.put("timestamp", System.currentTimeMillis())
+            return json
+        }
     }
 
     override fun onReceive(context: Context, intent: Intent) {
@@ -177,60 +261,6 @@ class SmsReceiver : BroadcastReceiver() {
             .trim()
     }
 
-    private fun sendToWebhook(webhookUrl: String, sender: String, content: String, type: ChannelType): Boolean {
-        val json = when (type) {
-            ChannelType.FEISHU -> buildFeishuMessage(sender, content)
-            ChannelType.WECHAT -> buildWechatMessage(sender, content)
-            ChannelType.DINGTALK -> buildDingtalkMessage(sender, content)
-            ChannelType.GENERIC_WEBHOOK -> buildGenericMessage(sender, content)
-        }
-
-        val body = json.toString().toRequestBody("application/json; charset=utf-8".toMediaType())
-        val req = Request.Builder()
-            .url(webhookUrl)
-            .post(body)
-            .build()
-
-        client.newCall(req).execute().use { resp ->
-            return resp.isSuccessful
-        }
-    }
-
-    private fun buildWechatMessage(sender: String, content: String): JSONObject {
-        val json = JSONObject()
-        json.put("msgtype", "text")
-        val text = JSONObject()
-        text.put("content", "来自: $sender\n$content")
-        json.put("text", text)
-        return json
-    }
-
-    private fun buildDingtalkMessage(sender: String, content: String): JSONObject {
-        val json = JSONObject()
-        json.put("msgtype", "text")
-        val text = JSONObject()
-        text.put("content", "【短信转发】\n来自: $sender\n$content")
-        json.put("text", text)
-        return json
-    }
-
-    private fun buildFeishuMessage(sender: String, content: String): JSONObject {
-        val json = JSONObject()
-        json.put("msg_type", "text")
-        val text = JSONObject()
-        text.put("text", "【短信转发】\n来自: $sender\n$content")
-        json.put("content", text)
-        return json
-    }
-
-    private fun buildGenericMessage(sender: String, content: String): JSONObject {
-        val json = JSONObject()
-        json.put("sender", sender)
-        json.put("content", content)
-        json.put("timestamp", System.currentTimeMillis())
-        return json
-    }
-
     private fun isValidUrl(s: String): Boolean {
         return try {
             val url = URL(s)
@@ -265,36 +295,6 @@ class SmsReceiver : BroadcastReceiver() {
             }
         } catch (t: Throwable) {
             emptyList()
-        }
-    }
-
-    // 供 NetworkChangeReceiver 调用，重试失败的消息
-    @JvmStatic
-    fun retryFailedMessages(context: Context) {
-        synchronized(failedMessageLock) {
-            if (failedMessages.isEmpty()) return
-
-            val toRetry = failedMessages.filter { it.retryCount < 3 }
-            failedMessages.clear()
-
-            toRetry.forEach { failed ->
-                executor.execute {
-                    try {
-                        val success = sendToWebhook(failed.channel.target, failed.sender, failed.content, failed.channel.type)
-                        if (success) {
-                            LogStore.append(context, "重试转发成功 -> ${failed.channel.name}")
-                        } else {
-                            if (failed.retryCount + 1 < 3) {
-                                failedMessages.add(failed.copy(retryCount = failed.retryCount + 1))
-                            } else {
-                                LogStore.append(context, "重试转发失败（已达最大次数）-> ${failed.channel.name}")
-                            }
-                        }
-                    } catch (e: Exception) {
-                        Log.e(TAG, "retry failed", e)
-                    }
-                }
-            }
         }
     }
 }
