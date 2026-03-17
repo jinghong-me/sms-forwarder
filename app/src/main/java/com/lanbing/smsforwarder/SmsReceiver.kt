@@ -208,7 +208,7 @@ class SmsReceiver : BroadcastReceiver() {
             .trim()
     }
 
-    private fun sendToWebhook(webhookUrl: String, sender: String, content: String, type: ChannelType): Boolean {
+    internal fun sendToWebhook(webhookUrl: String, sender: String, content: String, type: ChannelType): Boolean {
         val json = when (type) {
             ChannelType.FEISHU -> buildFeishuMessage(sender, content)
             ChannelType.WECHAT -> buildWechatMessage(sender, content)
