@@ -269,6 +269,7 @@ class SmsReceiver : BroadcastReceiver() {
     }
 
     // 供 NetworkChangeReceiver 调用，重试失败的消息
+    @JvmStatic
     fun retryFailedMessages(context: Context) {
         synchronized(failedMessageLock) {
             if (failedMessages.isEmpty()) return

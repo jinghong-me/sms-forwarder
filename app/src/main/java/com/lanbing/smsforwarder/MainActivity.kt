@@ -24,7 +24,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.selection.SelectionContainer
+
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
@@ -46,7 +46,7 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsControllerCompat
-import kotlinx.coroutines.launch
+
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.*
@@ -148,7 +148,6 @@ fun SmsForwarderApp(
 ) {
     val context = LocalContext.current
     val prefs = context.getSharedPreferences("app_config", Context.MODE_PRIVATE)
-    val scope = rememberCoroutineScope()
 
     var isEnabled by remember { mutableStateOf(prefs.getBoolean("enabled", false)) }
     var startOnBoot by remember { mutableStateOf(prefs.getBoolean("start_on_boot", false)) }
@@ -181,7 +180,7 @@ fun SmsForwarderApp(
 
     // UI state
     var logs by remember { mutableStateOf(LogStore.readAll(context)) }
-    var currentTab by remember { mutableIntStateOf(0) }
+    var currentTab by remember { mutableStateOf(0) }
     var showTestDialog by remember { mutableStateOf(false) }
     var showAboutDialog by remember { mutableStateOf(false) }
 

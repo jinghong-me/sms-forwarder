@@ -23,7 +23,7 @@ class NetworkChangeReceiver : BroadcastReceiver() {
         if (isNetworkAvailable(context)) {
             Log.d(TAG, "网络已恢复，触发失败消息重试")
             // 触发重试
-            SmsReceiver().retryFailedMessages(context)
+            SmsReceiver.retryFailedMessages(context)
         }
     }
 
