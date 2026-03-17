@@ -30,7 +30,7 @@ jobs:
       - name: Build with Gradle
         run: |
           export PATH=$PWD/gradle-8.4/bin:$PATH
-          gradle assembleDebug --no-daemon --offline 2>&1 | tee build.log || true
+          gradle assembleDebug --no-daemon 2>&1 | tee build.log || true
 
       - name: Check build status
         run: |
