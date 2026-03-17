@@ -85,7 +85,7 @@ class SmsReceiver : BroadcastReceiver() {
             }
         }
 
-        private fun sendToWebhook(webhookUrl: String, sender: String, content: String, type: ChannelType): Boolean {
+        internal fun sendToWebhook(webhookUrl: String, sender: String, content: String, type: ChannelType): Boolean {
             val json = when (type) {
                 ChannelType.FEISHU -> buildFeishuMessage(sender, content)
                 ChannelType.WECHAT -> buildWechatMessage(sender, content)
@@ -212,7 +212,7 @@ class SmsReceiver : BroadcastReceiver() {
                                         try { Thread.sleep(backoff) } catch (_: InterruptedException) { }
                                     }
                                     try {
-                                        success = sendToWebhook(ch.target, sender, fullMessage, ch.type)
+                                        success = Companion.sendToWebhook(ch.target, sender, fullMessage, ch.type)
                                     } catch (e: Exception) {
                                         Log.e(TAG, "send attempt ${attempt+1} failed to ${ch.target}", e)
                                     }
