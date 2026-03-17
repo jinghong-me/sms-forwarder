@@ -33,10 +33,21 @@ jobs:
         run: gradle clean
 
       - name: Build app (assembleDebug)
-        run: gradle assembleDebug --info 2>&1 | tee build.log
+        run: gradle assembleDebug --stacktrace 2>&1 | tee build.log
+        continue-on-error: true
 
-      - name: Upload build log on failure
-        if: failure()
+      - name: Check build result
+        run: |
+          if grep -q "BUILD SUCCESSFUL" build.log; then
+            echo "Build succeeded"
+            exit 0
+          else
+            echo "Build failed"
+            exit 1
+          fi
+
+      - name: Upload build log
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: build-log
