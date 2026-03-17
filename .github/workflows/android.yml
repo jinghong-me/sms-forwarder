@@ -23,17 +23,17 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Grant execute permission for gradlew
-        run: chmod +x gradlew
-        continue-on-error: true
-
-      - name: Build with Gradle (using wrapper if available)
+      - name: Download and install Gradle 8.2
         run: |
-          if [ -f "./gradlew" ]; then
-            ./gradlew assembleDebug --stacktrace 2>&1 | tee build.log
-          else
-            gradle assembleDebug --stacktrace 2>&1 | tee build.log
-          fi
+          wget https://services.gradle.org/distributions/gradle-8.2-bin.zip
+          unzip -q gradle-8.2-bin.zip
+          export PATH=$PWD/gradle-8.2/bin:$PATH
+          gradle --version
+
+      - name: Build with Gradle 8.2
+        run: |
+          export PATH=$PWD/gradle-8.2/bin:$PATH
+          gradle assembleDebug --no-daemon 2>&1 | tee build.log
         continue-on-error: true
 
       - name: Check build status
