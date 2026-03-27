@@ -19,10 +19,12 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 
 import androidx.compose.material.icons.Icons
@@ -33,11 +35,13 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -56,6 +60,7 @@ import java.util.*
  * - Material Design 3 设计
  * - 支持规则测试功能
  * - 添加电量优化白名单引导
+ * - 更现代的UI设计
  */
 
 class MainActivity : ComponentActivity() {
@@ -203,15 +208,57 @@ fun SmsForwarderApp(
         powerManager.isIgnoringBatteryOptimizations(context.packageName)
     } else true
 
+    // Page indicator colors
+    val pageColors = listOf(
+        Color(0xFF667EEA), // Purple
+        Color(0xFF10B981)  // Green
+    )
+
     Scaffold(
+        modifier = Modifier.background(
+            brush = Brush.verticalGradient(
+                colors = listOf(
+                    MaterialTheme.colorScheme.surface,
+                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                )
+            )
+        ),
         topBar = {
             TopAppBar(
                 title = {
-                    Text(
-                        "短信转发助手",
-                        fontSize = 22.sp,
-                        fontWeight = FontWeight.Bold
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(
+                                    brush = Brush.linearGradient(
+                                        colors = listOf(Color(0xFF667EEA), Color(0xFF764BA2))
+                                    )
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Message,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text(
+                                "短信转发助手",
+                                fontSize = 20.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                if (isEnabled) "服务运行中" else "服务已停止",
+                                fontSize = 12.sp,
+                                color = if (isEnabled) Color(0xFF10B981) else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
                 },
                 actions = {
                     IconButton(onClick = { showTestDialog = true }) {
@@ -222,22 +269,35 @@ fun SmsForwarderApp(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f)
+                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f)
                 )
             )
         },
         bottomBar = {
-            NavigationBar {
+            NavigationBar(
+                containerColor = MaterialTheme.colorScheme.surface,
+                tonalElevation = 8.dp
+            ) {
                 NavigationBarItem(
                     selected = currentTab == 0,
                     onClick = { currentTab = 0 },
-                    icon = { Icon(Icons.Filled.Tune, contentDescription = "配置") },
+                    icon = {
+                        Icon(
+                            if (currentTab == 0) Icons.Filled.Tune else Icons.Outlined.Tune,
+                            contentDescription = "配置"
+                        )
+                    },
                     label = { Text("配置") }
                 )
                 NavigationBarItem(
                     selected = currentTab == 1,
                     onClick = { currentTab = 1 },
-                    icon = { Icon(Icons.Filled.History, contentDescription = "日志") },
+                    icon = {
+                        Icon(
+                            if (currentTab == 1) Icons.Filled.History else Icons.Outlined.History,
+                            contentDescription = "日志"
+                        )
+                    },
                     label = { Text("日志") }
                 )
             }
@@ -247,150 +307,163 @@ fun SmsForwarderApp(
             modifier = Modifier
                 .padding(innerPadding)
                 .fillMaxSize()
-                .background(MaterialTheme.colorScheme.background)
         ) {
-            when (currentTab) {
-                0 -> ConfigTab(
-                    isEnabled = isEnabled,
-                    onEnabledChange = { checked ->
-                        isEnabled = checked
-                        prefs.edit().putBoolean(Constants.PREF_ENABLED, isEnabled).apply()
-                        if (checked) {
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                                val hasNotif = ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
-                                if (!hasNotif) onRequestNotificationPermission()
+            AnimatedContent(
+                targetState = currentTab,
+                transitionSpec = {
+                    fadeIn(animationSpec = tween(300)) + slideInHorizontally(
+                        initialOffsetX = { if (targetState > initialState) it else -it },
+                        animationSpec = tween(300)
+                    ) with fadeOut(animationSpec = tween(300)) + slideOutHorizontally(
+                        targetOffsetX = { if (targetState < initialState) it else -it },
+                        animationSpec = tween(300)
+                    )
+                },
+                label = "tabAnimation"
+            ) { tabIndex ->
+                when (tabIndex) {
+                    0 -> ConfigTab(
+                        isEnabled = isEnabled,
+                        onEnabledChange = { checked ->
+                            isEnabled = checked
+                            prefs.edit().putBoolean(Constants.PREF_ENABLED, isEnabled).apply()
+                            if (checked) {
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                    val hasNotif = ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+                                    if (!hasNotif) onRequestNotificationPermission()
+                                }
+                                val hasSms = ContextCompat.checkSelfPermission(context, Manifest.permission.RECEIVE_SMS) == PackageManager.PERMISSION_GRANTED
+                                if (!hasSms) onRequestSmsPermission()
+                                onStartService()
+                                LogStore.append(context, "服务已启动（由用户开启）")
+                            } else {
+                                onStopService()
+                                LogStore.append(context, "服务已停止（由用户关闭）")
                             }
-                            val hasSms = ContextCompat.checkSelfPermission(context, Manifest.permission.RECEIVE_SMS) == PackageManager.PERMISSION_GRANTED
-                            if (!hasSms) onRequestSmsPermission()
-                            onStartService()
-                            LogStore.append(context, "服务已启动（由用户开启）")
-                        } else {
-                            onStopService()
-                            LogStore.append(context, "服务已停止（由用户关闭）")
-                        }
-                        context.sendBroadcast(Intent(SmsForegroundService.ACTION_UPDATE))
-                    },
-                    startOnBoot = startOnBoot,
-                    onStartOnBootChange = {
-                        startOnBoot = it
-                        prefs.edit().putBoolean(Constants.PREF_START_ON_BOOT, startOnBoot).apply()
-                        if (startOnBoot) LogStore.append(context, "已开启开机启动") else LogStore.append(context, "已关闭开机启动")
-                    },
-                    smsGranted = smsGranted,
-                    notifGranted = notifGranted,
-                    isIgnoringBatteryOptimizations = isIgnoringBatteryOptimizations,
-                    onRequestSmsPermission = onRequestSmsPermission,
-                    onRequestNotificationPermission = onRequestNotificationPermission,
-                    onRequestBatteryOptimization = {
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                            val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                                data = Uri.parse("package:${context.packageName}")
+                            context.sendBroadcast(Intent(SmsForegroundService.ACTION_UPDATE))
+                        },
+                        startOnBoot = startOnBoot,
+                        onStartOnBootChange = {
+                            startOnBoot = it
+                            prefs.edit().putBoolean(Constants.PREF_START_ON_BOOT, startOnBoot).apply()
+                            if (startOnBoot) LogStore.append(context, "已开启开机启动") else LogStore.append(context, "已关闭开机启动")
+                        },
+                        smsGranted = smsGranted,
+                        notifGranted = notifGranted,
+                        isIgnoringBatteryOptimizations = isIgnoringBatteryOptimizations,
+                        onRequestSmsPermission = onRequestSmsPermission,
+                        onRequestNotificationPermission = onRequestNotificationPermission,
+                        onRequestBatteryOptimization = {
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                                val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                                    data = Uri.parse("package:${context.packageName}")
+                                }
+                                context.startActivity(intent)
                             }
-                            context.startActivity(intent)
+                        },
+                        channels = channels,
+                        configs = configs,
+                        newChannelName = newChannelName,
+                        onNewChannelNameChange = { newChannelName = it },
+                        newChannelTarget = newChannelTarget,
+                        onNewChannelTargetChange = { newChannelTarget = it },
+                        newChannelType = newChannelType,
+                        onNewChannelTypeChange = { newChannelType = it },
+                        channelTypeExpanded = channelTypeExpanded,
+                        onChannelTypeExpandedChange = { channelTypeExpanded = it },
+                        onAddChannel = {
+                            if (newChannelName.isBlank() || newChannelTarget.isBlank()) {
+                                Toast.makeText(context, "请填写通道名称和 Webhook 地址", Toast.LENGTH_SHORT).show()
+                                return@ConfigTab
+                            }
+                            if (!isValidWebhookUrl(newChannelTarget)) {
+                                Toast.makeText(context, "Webhook 地址格式无效，请输入有效的 http:// 或 https:// 地址", Toast.LENGTH_SHORT).show()
+                                return@ConfigTab
+                            }
+                            val newChannel = Channel(UUID.randomUUID().toString(), newChannelName.trim(), newChannelType, newChannelTarget.trim())
+                            channels = channels + newChannel
+                            saveChannels(prefs, channels)
+                            selectedChannelIdForNewCfg = channels.firstOrNull()?.id ?: ""
+                            newChannelName = ""
+                            newChannelTarget = ""
+                            LogStore.append(context, "添加通道: ${newChannel.name} (${newChannel.type})")
+                            Toast.makeText(context, "通道已添加", Toast.LENGTH_SHORT).show()
+                        },
+                        onDeleteChannel = { ch ->
+                            channels = channels.filterNot { it.id == ch.id }
+                            saveChannels(prefs, channels)
+                            configs = configs.filterNot { it.channelId == ch.id }
+                            saveConfigs(prefs, configs)
+                            LogStore.append(context, "删除通道: ${ch.name}")
+                        },
+                        onEditChannel = { ch ->
+                            editingChannel = ch
+                            editChannelName = ch.name
+                            editChannelTarget = ch.target
+                            editChannelType = ch.type
+                            showChannelDialog = true
+                        },
+                        newKeywordInput = newKeywordInput,
+                        onNewKeywordInputChange = { newKeywordInput = it },
+                        selectedChannelIdForNewCfg = selectedChannelIdForNewCfg,
+                        onSelectedChannelIdForNewCfgChange = { selectedChannelIdForNewCfg = it },
+                        configChannelDropdownExpanded = configChannelDropdownExpanded,
+                        onConfigChannelDropdownExpandedChange = { configChannelDropdownExpanded = it },
+                        onAddConfig = {
+                            if (channels.isEmpty()) {
+                                Toast.makeText(context, "请先添加通道", Toast.LENGTH_SHORT).show()
+                                return@ConfigTab
+                            }
+                            if (selectedChannelIdForNewCfg.isBlank()) {
+                                Toast.makeText(context, "请选择通道", Toast.LENGTH_SHORT).show()
+                                return@ConfigTab
+                            }
+                            val newCfg = KeywordConfig(UUID.randomUUID().toString(), newKeywordInput.trim(), selectedChannelIdForNewCfg)
+                            configs = configs + newCfg
+                            saveConfigs(prefs, configs)
+                            newKeywordInput = ""
+                            LogStore.append(context, "添加关键词: ${newCfg.keyword} -> ${channels.find { it.id == newCfg.channelId }?.name}")
+                            Toast.makeText(context, "配置已添加", Toast.LENGTH_SHORT).show()
+                        },
+                        onDeleteConfig = { cfg ->
+                            configs = configs.filterNot { it.id == cfg.id }
+                            saveConfigs(prefs, configs)
+                        },
+                        onEditConfig = { cfg ->
+                            editingConfig = cfg
+                            editConfigKeyword = cfg.keyword
+                            editConfigChannelId = cfg.channelId
+                            showConfigDialog = true
                         }
-                    },
-                    channels = channels,
-                    configs = configs,
-                    newChannelName = newChannelName,
-                    onNewChannelNameChange = { newChannelName = it },
-                    newChannelTarget = newChannelTarget,
-                    onNewChannelTargetChange = { newChannelTarget = it },
-                    newChannelType = newChannelType,
-                    onNewChannelTypeChange = { newChannelType = it },
-                    channelTypeExpanded = channelTypeExpanded,
-                    onChannelTypeExpandedChange = { channelTypeExpanded = it },
-                    onAddChannel = {
-                        if (newChannelName.isBlank() || newChannelTarget.isBlank()) {
-                            Toast.makeText(context, "请填写通道名称和 Webhook 地址", Toast.LENGTH_SHORT).show()
-                            return@ConfigTab
+                    )
+                    1 -> LogTab(
+                        logs = logs,
+                        onRefresh = { logs = LogStore.readAll(context) },
+                        onClear = {
+                            LogStore.clear(context)
+                            logs = emptyList()
+                            Toast.makeText(context, "日志已清除", Toast.LENGTH_SHORT).show()
                         }
-                        if (!isValidWebhookUrl(newChannelTarget)) {
-                            Toast.makeText(context, "Webhook 地址格式无效，请输入有效的 http:// 或 https:// 地址", Toast.LENGTH_SHORT).show()
-                            return@ConfigTab
-                        }
-                        val newChannel = Channel(UUID.randomUUID().toString(), newChannelName.trim(), newChannelType, newChannelTarget.trim())
-                        channels = channels + newChannel
-                        saveChannels(prefs, channels)
-                        selectedChannelIdForNewCfg = channels.firstOrNull()?.id ?: ""
-                        newChannelName = ""
-                        newChannelTarget = ""
-                        LogStore.append(context, "添加通道: ${newChannel.name} (${newChannel.type})")
-                        Toast.makeText(context, "通道已添加", Toast.LENGTH_SHORT).show()
-                    },
-                    onDeleteChannel = { ch ->
-                        channels = channels.filterNot { it.id == ch.id }
-                        saveChannels(prefs, channels)
-                        configs = configs.filterNot { it.channelId == ch.id }
-                        saveConfigs(prefs, configs)
-                        LogStore.append(context, "删除通道: ${ch.name}")
-                    },
-                    onEditChannel = { ch ->
-                        editingChannel = ch
-                        editChannelName = ch.name
-                        editChannelTarget = ch.target
-                        editChannelType = ch.type
-                        showChannelDialog = true
-                    },
-                    newKeywordInput = newKeywordInput,
-                    onNewKeywordInputChange = { newKeywordInput = it },
-                    selectedChannelIdForNewCfg = selectedChannelIdForNewCfg,
-                    onSelectedChannelIdForNewCfgChange = { selectedChannelIdForNewCfg = it },
-                    configChannelDropdownExpanded = configChannelDropdownExpanded,
-                    onConfigChannelDropdownExpandedChange = { configChannelDropdownExpanded = it },
-                    onAddConfig = {
-                        if (channels.isEmpty()) {
-                            Toast.makeText(context, "请先添加通道", Toast.LENGTH_SHORT).show()
-                            return@ConfigTab
-                        }
-                        if (selectedChannelIdForNewCfg.isBlank()) {
-                            Toast.makeText(context, "请选择通道", Toast.LENGTH_SHORT).show()
-                            return@ConfigTab
-                        }
-                        val newCfg = KeywordConfig(UUID.randomUUID().toString(), newKeywordInput.trim(), selectedChannelIdForNewCfg)
-                        configs = configs + newCfg
-                        saveConfigs(prefs, configs)
-                        newKeywordInput = ""
-                        LogStore.append(context, "添加关键词: ${newCfg.keyword} -> ${channels.find { it.id == newCfg.channelId }?.name}")
-                        Toast.makeText(context, "配置已添加", Toast.LENGTH_SHORT).show()
-                    },
-                    onDeleteConfig = { cfg ->
-                        configs = configs.filterNot { it.id == cfg.id }
-                        saveConfigs(prefs, configs)
-                    },
-                    onEditConfig = { cfg ->
-                        editingConfig = cfg
-                        editConfigKeyword = cfg.keyword
-                        editConfigChannelId = cfg.channelId
-                        showConfigDialog = true
-                    }
-                )
-                1 -> LogTab(
-                    logs = logs,
-                    onRefresh = { logs = LogStore.readAll(context) },
-                    onClear = {
-                        LogStore.clear(context)
-                        logs = emptyList()
-                        Toast.makeText(context, "日志已清除", Toast.LENGTH_SHORT).show()
-                    }
-                )
+                    )
+                }
             }
         }
     }
 
     // Edit Channel Dialog
     if (showChannelDialog && editingChannel != null) {
-        AlertDialog(
+        ModernAlertDialog(
             onDismissRequest = { showChannelDialog = false; editingChannel = null },
-            title = { Text("编辑通道") },
-            text = {
-                Column {
+            title = "编辑通道",
+            content = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     OutlinedTextField(
                         value = editChannelName,
                         onValueChange = { editChannelName = it },
                         label = { Text("通道名称") },
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp)
                     )
-                    Spacer(Modifier.height(8.dp))
                     var editTypeExpanded by remember { mutableStateOf(false) }
                     ExposedDropdownMenuBox(
                         expanded = editTypeExpanded,
@@ -402,7 +475,8 @@ fun SmsForwarderApp(
                             readOnly = true,
                             label = { Text("通道类型") },
                             modifier = Modifier.menuAnchor().fillMaxWidth(),
-                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(editTypeExpanded) }
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(editTypeExpanded) },
+                            shape = RoundedCornerShape(12.dp)
                         )
                         ExposedDropdownMenu(
                             expanded = editTypeExpanded,
@@ -419,25 +493,28 @@ fun SmsForwarderApp(
                             }
                         }
                     }
-                    Spacer(Modifier.height(8.dp))
                     OutlinedTextField(
                         value = editChannelTarget,
                         onValueChange = { editChannelTarget = it },
                         label = { Text("Webhook 地址") },
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp)
                     )
                 }
             },
             confirmButton = {
-                TextButton(onClick = {
-                    val ch = editingChannel ?: return@TextButton
-                    val updated = Channel(ch.id, editChannelName.trim(), editChannelType, editChannelTarget.trim())
-                    channels = channels.map { if (it.id == ch.id) updated else it }
-                    saveChannels(prefs, channels)
-                    LogStore.append(context, "编辑通道: ${updated.name}")
-                    showChannelDialog = false
-                    editingChannel = null
-                }) { Text("保存") }
+                Button(
+                    onClick = {
+                        val ch = editingChannel ?: return@Button
+                        val updated = Channel(ch.id, editChannelName.trim(), editChannelType, editChannelTarget.trim())
+                        channels = channels.map { if (it.id == ch.id) updated else it }
+                        saveChannels(prefs, channels)
+                        LogStore.append(context, "编辑通道: ${updated.name}")
+                        showChannelDialog = false
+                        editingChannel = null
+                    },
+                    shape = RoundedCornerShape(12.dp)
+                ) { Text("保存") }
             },
             dismissButton = {
                 TextButton(onClick = { showChannelDialog = false; editingChannel = null }) { Text("取消") }
@@ -447,18 +524,18 @@ fun SmsForwarderApp(
 
     // Edit Config Dialog
     if (showConfigDialog && editingConfig != null) {
-        AlertDialog(
+        ModernAlertDialog(
             onDismissRequest = { showConfigDialog = false; editingConfig = null },
-            title = { Text("编辑关键词配置") },
-            text = {
-                Column {
+            title = "编辑关键词配置",
+            content = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     OutlinedTextField(
                         value = editConfigKeyword,
                         onValueChange = { editConfigKeyword = it },
                         label = { Text("关键词（留空表示全部）") },
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp)
                     )
-                    Spacer(Modifier.height(8.dp))
                     var editCfgExpanded by remember { mutableStateOf(false) }
                     ExposedDropdownMenuBox(
                         expanded = editCfgExpanded,
@@ -470,7 +547,8 @@ fun SmsForwarderApp(
                             readOnly = true,
                             label = { Text("转发通道") },
                             modifier = Modifier.menuAnchor().fillMaxWidth(),
-                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(editCfgExpanded) }
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(editCfgExpanded) },
+                            shape = RoundedCornerShape(12.dp)
                         )
                         ExposedDropdownMenu(
                             expanded = editCfgExpanded,
@@ -490,19 +568,22 @@ fun SmsForwarderApp(
                 }
             },
             confirmButton = {
-                TextButton(onClick = {
-                    val cfg = editingConfig ?: return@TextButton
-                    if (editConfigChannelId.isBlank()) {
-                        Toast.makeText(context, "请选择通道", Toast.LENGTH_SHORT).show()
-                        return@TextButton
-                    }
-                    val updated = KeywordConfig(cfg.id, editConfigKeyword.trim(), editConfigChannelId)
-                    configs = configs.map { if (it.id == cfg.id) updated else it }
-                    saveConfigs(prefs, configs)
-                    LogStore.append(context, "编辑关键词: ${updated.keyword} -> ${channels.find { it.id == updated.channelId }?.name}")
-                    showConfigDialog = false
-                    editingConfig = null
-                }) { Text("保存") }
+                Button(
+                    onClick = {
+                        val cfg = editingConfig ?: return@Button
+                        if (editConfigChannelId.isBlank()) {
+                            Toast.makeText(context, "请选择通道", Toast.LENGTH_SHORT).show()
+                            return@Button
+                        }
+                        val updated = KeywordConfig(cfg.id, editConfigKeyword.trim(), editConfigChannelId)
+                        configs = configs.map { if (it.id == cfg.id) updated else it }
+                        saveConfigs(prefs, configs)
+                        LogStore.append(context, "编辑关键词: ${updated.keyword} -> ${channels.find { it.id == updated.channelId }?.name}")
+                        showConfigDialog = false
+                        editingConfig = null
+                    },
+                    shape = RoundedCornerShape(12.dp)
+                ) { Text("保存") }
             },
             dismissButton = {
                 TextButton(onClick = { showConfigDialog = false; editingConfig = null }) { Text("取消") }
@@ -522,6 +603,44 @@ fun SmsForwarderApp(
     // About Dialog
     if (showAboutDialog) {
         AboutDialog(onDismiss = { showAboutDialog = false })
+    }
+}
+
+@Composable
+fun ModernAlertDialog(
+    onDismissRequest: () -> Unit,
+    title: String,
+    content: @Composable ColumnScope.() -> Unit,
+    confirmButton: @Composable () -> Unit,
+    dismissButton: @Composable () -> Unit
+) {
+    Dialog(onDismissRequest = onDismissRequest) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            shape = RoundedCornerShape(20.dp),
+            elevation = CardDefaults.cardElevation(8.dp)
+        ) {
+            Column(modifier = Modifier.padding(24.dp)) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(20.dp))
+                content()
+                Spacer(modifier = Modifier.height(24.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    dismissButton()
+                    Spacer(modifier = Modifier.width(8.dp))
+                    confirmButton()
+                }
+            }
+        }
     }
 }
 
@@ -564,13 +683,15 @@ fun ConfigTab(
         modifier = Modifier
             .fillMaxSize()
             .padding(horizontal = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
         contentPadding = PaddingValues(vertical = 16.dp)
     ) {
         // Service Status Card
         item {
-            ModernCard {
-                Column(modifier = Modifier.padding(16.dp)) {
+            ModernCard(
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(20.dp)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically
@@ -578,16 +699,16 @@ fun ConfigTab(
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 "转发服务",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold
                             )
                             Spacer(Modifier.height(6.dp))
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 val statusColor = if (isEnabled) Color(0xFF10B981) else Color(0xFF9CA3AF)
                                 Box(
                                     modifier = Modifier
-                                        .size(10.dp)
-                                        .background(statusColor, shape = RoundedCornerShape(50))
+                                        .size(12.dp)
+                                        .background(statusColor, shape = CircleShape)
                                 )
                                 Spacer(Modifier.width(8.dp))
                                 Text(
@@ -597,13 +718,23 @@ fun ConfigTab(
                                 )
                             }
                         }
+                        val switchScale by animateFloatAsState(
+                            targetValue = if (isEnabled) 1.1f else 1f,
+                            animationSpec = spring(stiffness = Spring.StiffnessMedium),
+                            label = "switchAnimation"
+                        )
                         Switch(
                             checked = isEnabled,
-                            onCheckedChange = onEnabledChange
+                            onCheckedChange = onEnabledChange,
+                            modifier = Modifier.scale(switchScale),
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color.White,
+                                checkedTrackColor = Color(0xFF667EEA)
+                            )
                         )
                     }
 
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
+                    Spacer(modifier = Modifier.height(20.dp))
 
                     // Permission items
                     PermissionItem(
@@ -612,12 +743,14 @@ fun ConfigTab(
                         granted = notifGranted,
                         onClick = onRequestNotificationPermission
                     )
+                    Spacer(modifier = Modifier.height(12.dp))
                     PermissionItem(
                         icon = Icons.Outlined.Sms,
                         title = "短信权限",
                         granted = smsGranted,
                         onClick = onRequestSmsPermission
                     )
+                    Spacer(modifier = Modifier.height(12.dp))
                     PermissionItem(
                         icon = Icons.Outlined.BatteryFull,
                         title = "电池优化白名单",
@@ -625,14 +758,38 @@ fun ConfigTab(
                         onClick = onRequestBatteryOptimization
                     )
 
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
+                    Spacer(modifier = Modifier.height(20.dp))
 
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Outlined.PowerSettingsNew, contentDescription = null)
-                        Spacer(Modifier.width(8.dp))
-                        Text("开机自启动")
-                        Spacer(Modifier.weight(1f))
-                        Switch(checked = startOnBoot, onCheckedChange = onStartOnBootChange)
+                    HorizontalDivider()
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(
+                            Icons.Outlined.PowerSettingsNew,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                "开机自启动",
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = FontWeight.Medium
+                            )
+                            Text(
+                                "设备启动后自动运行",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = startOnBoot,
+                            onCheckedChange = onStartOnBootChange
+                        )
                     }
                 }
             }
@@ -642,20 +799,47 @@ fun ConfigTab(
         item {
             ModernCard {
                 Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    modifier = Modifier.padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    Text(
-                        "关键词配置",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Color(0xFF10B981).copy(alpha = 0.1f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Rule,
+                                contentDescription = null,
+                                tint = Color(0xFF10B981)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text(
+                                "关键词配置",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                "设置转发关键词",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
 
                     OutlinedTextField(
                         value = newKeywordInput,
                         onValueChange = onNewKeywordInputChange,
                         label = { Text("输入关键词（留空表示全部）") },
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        leadingIcon = {
+                            Icon(Icons.Outlined.Search, contentDescription = null)
+                        },
+                        shape = RoundedCornerShape(12.dp)
                     )
 
                     ExposedDropdownMenuBox(
@@ -668,7 +852,11 @@ fun ConfigTab(
                             readOnly = true,
                             label = { Text("转发通道") },
                             modifier = Modifier.menuAnchor().fillMaxWidth(),
-                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(configChannelDropdownExpanded) }
+                            leadingIcon = {
+                                Icon(Icons.Outlined.Send, contentDescription = null)
+                            },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(configChannelDropdownExpanded) },
+                            shape = RoundedCornerShape(12.dp)
                         )
                         ExposedDropdownMenu(
                             expanded = configChannelDropdownExpanded,
@@ -694,12 +882,18 @@ fun ConfigTab(
 
                     Button(
                         onClick = onAddConfig,
-                        modifier = Modifier.fillMaxWidth()
-                    ) { Text("添加配置") }
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        contentPadding = PaddingValues(vertical = 14.dp)
+                    ) {
+                        Icon(Icons.Outlined.Add, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("添加配置", fontSize = 16.sp)
+                    }
 
                     // Config list
                     if (configs.isNotEmpty()) {
-                        Spacer(Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
                         configs.forEach { cfg ->
                             val chName = channels.find { it.id == cfg.channelId }?.name ?: "(已删除通道)"
                             ConfigItem(
@@ -718,20 +912,47 @@ fun ConfigTab(
         item {
             ModernCard {
                 Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    modifier = Modifier.padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    Text(
-                        "转发通道管理",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Color(0xFF667EEA).copy(alpha = 0.1f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Cloud,
+                                contentDescription = null,
+                                tint = Color(0xFF667EEA)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text(
+                                "转发通道管理",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                "添加和管理转发通道",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
 
                     OutlinedTextField(
                         value = newChannelName,
                         onValueChange = onNewChannelNameChange,
                         label = { Text("通道名称") },
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        leadingIcon = {
+                            Icon(Icons.Outlined.Label, contentDescription = null)
+                        },
+                        shape = RoundedCornerShape(12.dp)
                     )
 
                     ExposedDropdownMenuBox(
@@ -744,7 +965,11 @@ fun ConfigTab(
                             readOnly = true,
                             label = { Text("通道类型") },
                             modifier = Modifier.menuAnchor().fillMaxWidth(),
-                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(channelTypeExpanded) }
+                            leadingIcon = {
+                                Icon(Icons.Outlined.Category, contentDescription = null)
+                            },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(channelTypeExpanded) },
+                            shape = RoundedCornerShape(12.dp)
                         )
                         ExposedDropdownMenu(
                             expanded = channelTypeExpanded,
@@ -766,17 +991,27 @@ fun ConfigTab(
                         value = newChannelTarget,
                         onValueChange = onNewChannelTargetChange,
                         label = { Text("Webhook 地址") },
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        leadingIcon = {
+                            Icon(Icons.Outlined.Link, contentDescription = null)
+                        },
+                        shape = RoundedCornerShape(12.dp)
                     )
 
                     Button(
                         onClick = onAddChannel,
-                        modifier = Modifier.fillMaxWidth()
-                    ) { Text("添加通道") }
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        contentPadding = PaddingValues(vertical = 14.dp)
+                    ) {
+                        Icon(Icons.Outlined.Add, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("添加通道", fontSize = 16.sp)
+                    }
 
                     // Channel list
                     if (channels.isNotEmpty()) {
-                        Spacer(Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
                         channels.forEach { ch ->
                             ChannelItem(
                                 name = ch.name,
@@ -809,37 +1044,79 @@ fun LogTab(
         ModernCard(
             modifier = Modifier.weight(1f)
         ) {
-            Column(modifier = Modifier.padding(16.dp)) {
+            Column(modifier = Modifier.padding(20.dp)) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text(
-                        "转发日志",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Spacer(Modifier.weight(1f))
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color(0xFFF59E0B).copy(alpha = 0.1f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.History,
+                            contentDescription = null,
+                            tint = Color(0xFFF59E0B)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            "转发日志",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            "${logs.size} 条记录",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                     Row {
-                        IconButton(onClick = onRefresh) {
+                        IconButton(
+                            onClick = onRefresh,
+                            modifier = Modifier
+                                .size(44.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant)
+                        ) {
                             Icon(Icons.Filled.Refresh, contentDescription = "刷新")
                         }
-                        IconButton(onClick = onClear) {
-                            Icon(Icons.Filled.ClearAll, contentDescription = "清除")
+                        Spacer(modifier = Modifier.width(8.dp))
+                        IconButton(
+                            onClick = onClear,
+                            modifier = Modifier
+                                .size(44.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Color(0xFFEE4444).copy(alpha = 0.1f))
+                        ) {
+                            Icon(Icons.Filled.ClearAll, contentDescription = "清除", tint = Color(0xFFEE4444))
                         }
                     }
                 }
-                Spacer(Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(16.dp))
                 if (logs.isEmpty()) {
                     Box(
                         modifier = Modifier.fillMaxSize(),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            "暂无日志",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(
+                                Icons.Outlined.Description,
+                                contentDescription = null,
+                                modifier = Modifier.size(64.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Text(
+                                "暂无日志",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 } else {
                     LazyColumn(modifier = Modifier.fillMaxSize()) {
@@ -856,18 +1133,19 @@ fun LogTab(
 @Composable
 fun ModernCard(
     modifier: Modifier = Modifier,
-    content: @Composable () -> Unit
+    content: @Composable ColumnScope.() -> Unit
 ) {
     Card(
-        modifier = modifier
-            .fillMaxWidth()
-            .shadow(2.dp, RoundedCornerShape(16.dp)),
-        shape = RoundedCornerShape(16.dp),
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
-        )
+        ),
+        elevation = CardDefaults.cardElevation(2.dp)
     ) {
-        content()
+        Column {
+            content()
+        }
     }
 }
 
@@ -880,11 +1158,30 @@ fun PermissionItem(
 ) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(if (granted) Color(0xFF10B981).copy(alpha = 0.1f) else Color(0xFFEE4444).copy(alpha = 0.1f))
+            .padding(12.dp)
     ) {
-        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        Icon(
+            icon,
+            contentDescription = null,
+            tint = if (granted) Color(0xFF10B981) else Color(0xFFEE4444)
+        )
         Spacer(Modifier.width(12.dp))
-        Text(title, modifier = Modifier.weight(1f))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                title,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Medium
+            )
+            Text(
+                if (granted) "已授权" else "未授权",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
         if (granted) {
             Icon(
                 Icons.Filled.CheckCircle,
@@ -892,7 +1189,13 @@ fun PermissionItem(
                 tint = Color(0xFF10B981)
             )
         } else {
-            TextButton(onClick = onClick) { Text("去开启") }
+            Button(
+                onClick = onClick,
+                shape = RoundedCornerShape(8.dp),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+            ) {
+                Text("去开启")
+            }
         }
     }
 }
@@ -904,29 +1207,60 @@ fun ConfigItem(
     onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
-    Row(
+    Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .padding(vertical = 4.dp),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+        )
     ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                if (keyword.isBlank()) "全部消息" else keyword,
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.Medium
-            )
-            Text(
-                "→ $channelName",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-        IconButton(onClick = onEdit) {
-            Icon(Icons.Filled.Edit, contentDescription = "编辑")
-        }
-        IconButton(onClick = onDelete) {
-            Icon(Icons.Filled.Delete, contentDescription = "删除", tint = Color(0xFFEE4444))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFF10B981).copy(alpha = 0.2f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    Icons.Filled.Rule,
+                    contentDescription = null,
+                    tint = Color(0xFF10B981),
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    if (keyword.isBlank()) "全部消息" else keyword,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Medium
+                )
+                Text(
+                    "→ $channelName",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            IconButton(
+                onClick = onEdit,
+                modifier = Modifier.size(40.dp)
+            ) {
+                Icon(Icons.Filled.Edit, contentDescription = "编辑")
+            }
+            IconButton(
+                onClick = onDelete,
+                modifier = Modifier.size(40.dp)
+            ) {
+                Icon(Icons.Filled.Delete, contentDescription = "删除", tint = Color(0xFFEE4444))
+            }
         }
     }
 }
@@ -939,31 +1273,68 @@ fun ChannelItem(
     onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
-    Row(
+    Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .padding(vertical = 4.dp),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+        )
     ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                name,
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.Medium
-            )
-            Text(
-                "$type → ${target.take(30)}${if (target.length > 30) "..." else ""}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-        IconButton(onClick = onEdit) {
-            Icon(Icons.Filled.Edit, contentDescription = "编辑")
-        }
-        IconButton(onClick = onDelete) {
-            Icon(Icons.Filled.Delete, contentDescription = "删除", tint = Color(0xFFEE4444))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            val channelColor = when (type) {
+                "企业微信" -> Color(0xFF07C160)
+                "钉钉" -> Color(0xFF2080F0)
+                "飞书" -> Color(0xFF2064E5)
+                else -> Color(0xFF667EEA)
+            }
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(channelColor.copy(alpha = 0.2f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    Icons.Filled.Cloud,
+                    contentDescription = null,
+                    tint = channelColor,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    name,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Medium
+                )
+                Text(
+                    "$type → ${target.take(30)}${if (target.length > 30) "..." else ""}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            IconButton(
+                onClick = onEdit,
+                modifier = Modifier.size(40.dp)
+            ) {
+                Icon(Icons.Filled.Edit, contentDescription = "编辑")
+            }
+            IconButton(
+                onClick = onDelete,
+                modifier = Modifier.size(40.dp)
+            ) {
+                Icon(Icons.Filled.Delete, contentDescription = "删除", tint = Color(0xFFEE4444))
+            }
         }
     }
 }
@@ -981,26 +1352,34 @@ fun LogItem(line: String) {
         isError -> Color(0xFFEE4444)
         else -> MaterialTheme.colorScheme.primary
     }
+    val bgColor = when {
+        isSuccess -> Color(0xFF10B981).copy(alpha = 0.05f)
+        isError -> Color(0xFFEE4444).copy(alpha = 0.05f)
+        else -> Color.Transparent
+    }
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 8.dp),
+            .clip(RoundedCornerShape(8.dp))
+            .background(bgColor)
+            .padding(vertical = 12.dp, horizontal = 4.dp),
         verticalAlignment = Alignment.Top
     ) {
         Box(
             modifier = Modifier
                 .size(8.dp)
-                .background(iconTint, shape = RoundedCornerShape(50))
+                .background(iconTint, shape = CircleShape)
                 .padding(top = 6.dp)
         )
         Spacer(Modifier.width(12.dp))
-        Column {
+        Column(modifier = Modifier.weight(1f)) {
             Text(
                 msg,
                 style = MaterialTheme.typography.bodyMedium
             )
             if (time.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     time,
                     style = MaterialTheme.typography.bodySmall,
@@ -1025,21 +1404,49 @@ fun TestRuleDialog(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp),
-            shape = RoundedCornerShape(16.dp)
+            shape = RoundedCornerShape(24.dp),
+            elevation = CardDefaults.cardElevation(8.dp)
         ) {
-            Column(modifier = Modifier.padding(20.dp)) {
-                Text(
-                    "测试转发规则",
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(Modifier.height(16.dp))
+            Column(modifier = Modifier.padding(24.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(
+                                brush = Brush.linearGradient(
+                                    colors = listOf(Color(0xFFF59E0B), Color(0xFFD97706))
+                                )
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Filled.Science,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(28.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Column {
+                        Text(
+                            "测试转发规则",
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            "输入短信内容测试匹配",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(24.dp))
 
                 OutlinedTextField(
                     value = testContent,
                     onValueChange = {
                         testContent = it
-                        // 实时测试
                         testResults = if (it.isNotBlank()) {
                             configs.mapNotNull { cfg ->
                                 val kw = cfg.keyword.trim()
@@ -1054,52 +1461,89 @@ fun TestRuleDialog(
                     },
                     label = { Text("输入测试短信内容") },
                     modifier = Modifier.fillMaxWidth(),
-                    minLines = 3
+                    minLines = 4,
+                    shape = RoundedCornerShape(16.dp)
                 )
 
-                Spacer(Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(20.dp))
 
                 Text(
                     "匹配结果",
-                    style = MaterialTheme.typography.titleMedium,
+                    style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.SemiBold
                 )
-                Spacer(Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
                 if (testResults.isEmpty()) {
-                    Text(
-                        if (testContent.isBlank()) "请输入内容开始测试" else "没有匹配的规则",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                        ),
+                        shape = RoundedCornerShape(16.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(24.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(
+                                    Icons.Outlined.Rule,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(48.dp),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                                )
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Text(
+                                    if (testContent.isBlank()) "请输入内容开始测试" else "没有匹配的规则",
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                        }
+                    }
                 } else {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         testResults.forEach { (ch, cfg) ->
                             Card(
                                 modifier = Modifier.fillMaxWidth(),
                                 colors = CardDefaults.cardColors(
-                                    containerColor = MaterialTheme.colorScheme.primaryContainer
-                                )
+                                    containerColor = Color(0xFF10B981).copy(alpha = 0.1f)
+                                ),
+                                shape = RoundedCornerShape(16.dp)
                             ) {
                                 Row(
-                                    modifier = Modifier.padding(12.dp),
+                                    modifier = Modifier.padding(16.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Icon(
-                                        Icons.Filled.CheckCircle,
-                                        contentDescription = null,
-                                        tint = Color(0xFF10B981)
-                                    )
-                                    Spacer(Modifier.width(8.dp))
-                                    Column {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(40.dp)
+                                            .clip(CircleShape)
+                                            .background(Color(0xFF10B981).copy(alpha = 0.2f)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            Icons.Filled.CheckCircle,
+                                            contentDescription = null,
+                                            tint = Color(0xFF10B981),
+                                            modifier = Modifier.size(24.dp)
+                                        )
+                                    }
+                                    Spacer(Modifier.width(12.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
                                         Text(
                                             "关键词: ${if (cfg.keyword.isBlank()) "全部" else cfg.keyword}",
-                                            style = MaterialTheme.typography.bodyMedium,
+                                            style = MaterialTheme.typography.bodyLarge,
                                             fontWeight = FontWeight.Medium
                                         )
                                         Text(
                                             "→ ${ch.name} (${getChannelTypeLabel(ch.type)})",
-                                            style = MaterialTheme.typography.bodySmall
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     }
                                 }
@@ -1108,12 +1552,14 @@ fun TestRuleDialog(
                     }
                 }
 
-                Spacer(Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(24.dp))
 
-                TextButton(
+                Button(
                     onClick = onDismiss,
-                    modifier = Modifier.align(Alignment.End)
-                ) { Text("关闭") }
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    contentPadding = PaddingValues(vertical = 14.dp)
+                ) { Text("关闭", fontSize = 16.sp) }
             }
         }
     }
@@ -1126,19 +1572,32 @@ fun AboutDialog(onDismiss: () -> Unit) {
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp),
-            shape = RoundedCornerShape(16.dp)
+            shape = RoundedCornerShape(24.dp),
+            elevation = CardDefaults.cardElevation(8.dp)
         ) {
             Column(
-                modifier = Modifier.padding(24.dp),
+                modifier = Modifier.padding(28.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Icon(
-                    Icons.Filled.Message,
-                    contentDescription = null,
-                    modifier = Modifier.size(64.dp),
-                    tint = MaterialTheme.colorScheme.primary
-                )
-                Spacer(Modifier.height(16.dp))
+                Box(
+                    modifier = Modifier
+                        .size(80.dp)
+                        .clip(RoundedCornerShape(24.dp))
+                        .background(
+                            brush = Brush.linearGradient(
+                                colors = listOf(Color(0xFF667EEA), Color(0xFF764BA2))
+                            )
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Filled.Message,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(40.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.height(20.dp))
                 Text(
                     "短信转发助手",
                     style = MaterialTheme.typography.headlineSmall,
@@ -1149,14 +1608,19 @@ fun AboutDialog(onDismiss: () -> Unit) {
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Spacer(Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(20.dp))
                 Text(
                     "自动将收到的短信根据关键词规则转发到企业微信、钉钉、飞书或自定义 Webhook。",
                     style = MaterialTheme.typography.bodyMedium,
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    textAlign = TextAlign.Center,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Spacer(Modifier.height(24.dp))
-                TextButton(onClick = onDismiss) { Text("关闭") }
+                Spacer(modifier = Modifier.height(28.dp))
+                Button(
+                    onClick = onDismiss,
+                    shape = RoundedCornerShape(12.dp),
+                    contentPadding = PaddingValues(horizontal = 32.dp, vertical = 12.dp)
+                ) { Text("关闭", fontSize = 16.sp) }
             }
         }
     }
