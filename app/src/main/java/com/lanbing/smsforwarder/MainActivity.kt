@@ -310,15 +310,6 @@ fun SmsForwarderApp(
         ) {
             AnimatedContent(
                 targetState = currentTab,
-                transitionSpec = {
-                    fadeIn(animationSpec = tween(300)) + slideInHorizontally(
-                        initialOffsetX = { if (targetState > initialState) it else -it },
-                        animationSpec = tween(300)
-                    ) with fadeOut(animationSpec = tween(300)) + slideOutHorizontally(
-                        targetOffsetX = { if (targetState < initialState) it else -it },
-                        animationSpec = tween(300)
-                    )
-                },
                 label = "tabAnimation"
             ) { tabIndex ->
                 when (tabIndex) {
