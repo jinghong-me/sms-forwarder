@@ -65,7 +65,7 @@ android {
     }
     // 与下面的 Compose 版本保持一致
     composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.4"
+        kotlinCompilerExtensionVersion = "1.5.6"
     }
 }
 
@@ -79,13 +79,13 @@ tasks.register("printVersion") {
 
 dependencies {
     // 明确版本，避免 BOM 注入失败引起的问题
-    val composeUiVersion = "1.5.4"
-    val activityComposeVersion = "1.8.2"
-    val material3Version = "1.1.0"
-    val lifecycleRuntime = "2.6.2"
+    val composeUiVersion = "1.6.1"
+    val activityComposeVersion = "1.9.0"
+    val material3Version = "1.2.1"
+    val lifecycleRuntime = "2.7.0"
     val okhttpVersion = "4.12.0"
 
-    implementation("androidx.core:core-ktx:1.12.0")
+    implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:$lifecycleRuntime")
     implementation("androidx.activity:activity-compose:$activityComposeVersion")
 
