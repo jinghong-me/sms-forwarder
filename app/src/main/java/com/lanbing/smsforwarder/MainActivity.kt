@@ -11,6 +11,8 @@ import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
 import android.provider.Settings
+import android.telephony.SubscriptionManager
+import android.telephony.TelephonyManager
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -165,6 +167,9 @@ fun SmsForwarderApp(
 
     var isEnabled by remember { mutableStateOf(prefs.getBoolean(Constants.PREF_ENABLED, false)) }
     var startOnBoot by remember { mutableStateOf(prefs.getBoolean(Constants.PREF_START_ON_BOOT, false)) }
+    var showReceiverPhone by remember { mutableStateOf(prefs.getBoolean(Constants.PREF_SHOW_RECEIVER_PHONE, true)) }
+    var showSenderPhone by remember { mutableStateOf(prefs.getBoolean(Constants.PREF_SHOW_SENDER_PHONE, true)) }
+    var highlightVerificationCode by remember { mutableStateOf(prefs.getBoolean(Constants.PREF_HIGHLIGHT_VERIFICATION_CODE, true)) }
 
     var channels by remember { mutableStateOf(loadChannels(prefs)) }
     var configs by remember { mutableStateOf(loadConfigs(prefs)) }
@@ -338,6 +343,24 @@ fun SmsForwarderApp(
                             startOnBoot = it
                             prefs.edit().putBoolean(Constants.PREF_START_ON_BOOT, startOnBoot).apply()
                             if (startOnBoot) LogStore.append(context, "已开启开机启动") else LogStore.append(context, "已关闭开机启动")
+                        },
+                        showReceiverPhone = showReceiverPhone,
+                        onShowReceiverPhoneChange = {
+                            showReceiverPhone = it
+                            prefs.edit().putBoolean(Constants.PREF_SHOW_RECEIVER_PHONE, showReceiverPhone).apply()
+                            if (showReceiverPhone) LogStore.append(context, "已开启显示本机号码") else LogStore.append(context, "已关闭显示本机号码")
+                        },
+                        showSenderPhone = showSenderPhone,
+                        onShowSenderPhoneChange = {
+                            showSenderPhone = it
+                            prefs.edit().putBoolean(Constants.PREF_SHOW_SENDER_PHONE, showSenderPhone).apply()
+                            if (showSenderPhone) LogStore.append(context, "已开启显示发送者号码") else LogStore.append(context, "已关闭显示发送者号码")
+                        },
+                        highlightVerificationCode = highlightVerificationCode,
+                        onHighlightVerificationCodeChange = {
+                            highlightVerificationCode = it
+                            prefs.edit().putBoolean(Constants.PREF_HIGHLIGHT_VERIFICATION_CODE, highlightVerificationCode).apply()
+                            if (highlightVerificationCode) LogStore.append(context, "已开启突出显示验证码") else LogStore.append(context, "已关闭突出显示验证码")
                         },
                         smsGranted = smsGranted,
                         notifGranted = notifGranted,
@@ -641,6 +664,12 @@ fun ConfigTab(
     onEnabledChange: (Boolean) -> Unit,
     startOnBoot: Boolean,
     onStartOnBootChange: (Boolean) -> Unit,
+    showReceiverPhone: Boolean,
+    onShowReceiverPhoneChange: (Boolean) -> Unit,
+    showSenderPhone: Boolean,
+    onShowSenderPhoneChange: (Boolean) -> Unit,
+    highlightVerificationCode: Boolean,
+    onHighlightVerificationCodeChange: (Boolean) -> Unit,
     smsGranted: Boolean,
     notifGranted: Boolean,
     isIgnoringBatteryOptimizations: Boolean,
@@ -782,8 +811,119 @@ fun ConfigTab(
                             onCheckedChange = onStartOnBootChange
                         )
                     }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    HorizontalDivider()
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // 消息格式配置
+                    Text(
+                        "消息格式",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // 显示本机号码
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(
+                            Icons.Outlined.Phone,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                "显示本机号码",
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = FontWeight.Medium
+                            )
+                            Text(
+                                "转发时显示接收短信的本机号码",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = showReceiverPhone,
+                            onCheckedChange = onShowReceiverPhoneChange
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // 显示发送者号码
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(
+                            Icons.Outlined.Person,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                "显示发送者号码",
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = FontWeight.Medium
+                            )
+                            Text(
+                                "转发时显示短信发送者号码",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = showSenderPhone,
+                            onCheckedChange = onShowSenderPhoneChange
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // 突出显示验证码
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(
+                            Icons.Outlined.VpnKey,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                "突出显示验证码",
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = FontWeight.Medium
+                            )
+                            Text(
+                                "自动识别并突出显示短信验证码",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = highlightVerificationCode,
+                            onCheckedChange = onHighlightVerificationCodeChange
+                        )
+                    }
                 }
             }
+        }
+
+        // SIM 卡信息卡片
+        item {
+            SimCardInfoCard()
         }
 
         // Keyword Config Card
@@ -1615,6 +1755,368 @@ fun AboutDialog(onDismiss: () -> Unit) {
             }
         }
     }
+}
+
+@Composable
+fun SimCardInfoCard() {
+    val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences(Constants.PREFS_NAME, Context.MODE_PRIVATE) }
+    
+    var customSim1Phone by remember { mutableStateOf(prefs.getString(Constants.PREF_CUSTOM_SIM1_PHONE, null)) }
+    var customSim2Phone by remember { mutableStateOf(prefs.getString(Constants.PREF_CUSTOM_SIM2_PHONE, null)) }
+    
+    val simCards = remember(customSim1Phone, customSim2Phone) { 
+        getSimCardInfo(context, customSim1Phone, customSim2Phone) 
+    }
+    
+    var showEditDialog by remember { mutableStateOf<Int?>(null) }
+    var editPhoneNumber by remember { mutableStateOf("") }
+
+    ModernCard {
+        Column(modifier = Modifier.padding(20.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color(0xFF3B82F6).copy(alpha = 0.1f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Phone,
+                        contentDescription = null,
+                        tint = Color(0xFF3B82F6)
+                    )
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        "SIM 卡信息",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        "本机号码状态预览（可手动编辑）",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            if (simCards.isEmpty()) {
+                Text(
+                    "无法读取 SIM 卡信息",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            } else {
+                simCards.forEachIndexed { index, simInfo ->
+                    SimCardItem(
+                        slot = index + 1,
+                        phoneNumber = simInfo.phoneNumber,
+                        carrierName = simInfo.carrierName,
+                        isCustom = simInfo.isCustom,
+                        onEdit = {
+                            showEditDialog = index + 1
+                            editPhoneNumber = simInfo.phoneNumber ?: ""
+                        },
+                        onClear = {
+                            if (index + 1 == 1) {
+                                customSim1Phone = null
+                                prefs.edit().remove(Constants.PREF_CUSTOM_SIM1_PHONE).apply()
+                            } else {
+                                customSim2Phone = null
+                                prefs.edit().remove(Constants.PREF_CUSTOM_SIM2_PHONE).apply()
+                            }
+                        }
+                    )
+                    if (index < simCards.size - 1) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                    }
+                }
+            }
+        }
+    }
+
+    // 编辑 SIM 号码对话框
+    showEditDialog?.let { slot ->
+        EditSimPhoneDialog(
+            slot = slot,
+            currentPhoneNumber = editPhoneNumber,
+            onDismiss = { showEditDialog = null },
+            onSave = { newPhoneNumber ->
+                if (slot == 1) {
+                    customSim1Phone = newPhoneNumber.takeIf { it.isNotBlank() }
+                    if (newPhoneNumber.isNotBlank()) {
+                        prefs.edit().putString(Constants.PREF_CUSTOM_SIM1_PHONE, newPhoneNumber).apply()
+                    } else {
+                        prefs.edit().remove(Constants.PREF_CUSTOM_SIM1_PHONE).apply()
+                    }
+                } else {
+                    customSim2Phone = newPhoneNumber.takeIf { it.isNotBlank() }
+                    if (newPhoneNumber.isNotBlank()) {
+                        prefs.edit().putString(Constants.PREF_CUSTOM_SIM2_PHONE, newPhoneNumber).apply()
+                    } else {
+                        prefs.edit().remove(Constants.PREF_CUSTOM_SIM2_PHONE).apply()
+                    }
+                }
+                showEditDialog = null
+            }
+        )
+    }
+}
+
+private data class SimCardInfo(
+    val phoneNumber: String?,
+    val carrierName: String?,
+    val isCustom: Boolean = false
+)
+
+private fun getSimCardInfo(context: Context, customSim1Phone: String? = null, customSim2Phone: String? = null): List<SimCardInfo> {
+    val simCards = mutableListOf<SimCardInfo>()
+    try {
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_PHONE_STATE) != PackageManager.PERMISSION_GRANTED) {
+            // 即使没有权限，也显示自定义号码
+            if (customSim1Phone != null) {
+                simCards.add(SimCardInfo(phoneNumber = customSim1Phone, carrierName = null, isCustom = true))
+            }
+            if (customSim2Phone != null) {
+                simCards.add(SimCardInfo(phoneNumber = customSim2Phone, carrierName = null, isCustom = true))
+            }
+            return simCards
+        }
+
+        val subscriptionManager = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP_MR1) {
+            SubscriptionManager.from(context)
+        } else {
+            null
+        }
+
+        var slotIndex = 0
+        if (subscriptionManager != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP_MR1) {
+            val activeSubscriptions = subscriptionManager.activeSubscriptionInfoList
+            activeSubscriptions?.forEach { subInfo ->
+                slotIndex++
+                val customPhone = if (slotIndex == 1) customSim1Phone else if (slotIndex == 2) customSim2Phone else null
+                val phoneNumber = customPhone ?: subInfo.number?.takeIf { it.isNotBlank() }
+                simCards.add(
+                    SimCardInfo(
+                        phoneNumber = phoneNumber,
+                        carrierName = subInfo.carrierName?.toString(),
+                        isCustom = customPhone != null
+                    )
+                )
+            }
+        }
+
+        // 如果没有订阅信息或需要补充，检查是否有自定义号码
+        if (customSim1Phone != null && simCards.none { it.isCustom && slotIndex == 0 }) {
+            simCards.add(SimCardInfo(phoneNumber = customSim1Phone, carrierName = null, isCustom = true))
+        }
+        if (customSim2Phone != null && simCards.size < 2) {
+            simCards.add(SimCardInfo(phoneNumber = customSim2Phone, carrierName = null, isCustom = true))
+        }
+
+        // 回退方案：如果没有获取到 SIM 信息但有自定义号码，显示自定义号码
+        if (simCards.isEmpty()) {
+            if (customSim1Phone != null) {
+                simCards.add(SimCardInfo(phoneNumber = customSim1Phone, carrierName = null, isCustom = true))
+            }
+            if (customSim2Phone != null) {
+                simCards.add(SimCardInfo(phoneNumber = customSim2Phone, carrierName = null, isCustom = true))
+            }
+            
+            // 如果没有自定义号码，尝试获取默认号码
+            if (simCards.isEmpty()) {
+                val telephonyManager = context.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
+                val phoneNumber = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    telephonyManager.line1Number
+                } else {
+                    @Suppress("DEPRECATION")
+                    telephonyManager.line1Number
+                }
+                if (!phoneNumber.isNullOrBlank()) {
+                    simCards.add(
+                        SimCardInfo(
+                            phoneNumber = phoneNumber,
+                            carrierName = telephonyManager.networkOperatorName,
+                            isCustom = false
+                        )
+                    )
+                }
+            }
+        }
+    } catch (e: Exception) {
+        e.printStackTrace()
+        // 即使出错，也显示自定义号码
+        if (customSim1Phone != null) {
+            simCards.add(SimCardInfo(phoneNumber = customSim1Phone, carrierName = null, isCustom = true))
+        }
+        if (customSim2Phone != null) {
+            simCards.add(SimCardInfo(phoneNumber = customSim2Phone, carrierName = null, isCustom = true))
+        }
+    }
+    return simCards
+}
+
+@Composable
+fun SimCardItem(
+    slot: Int, 
+    phoneNumber: String?, 
+    carrierName: String?,
+    isCustom: Boolean = false,
+    onEdit: () -> Unit = {},
+    onClear: () -> Unit = {}
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(if (isCustom) Color(0xFF10B981).copy(alpha = 0.2f) else Color(0xFF3B82F6).copy(alpha = 0.2f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    "SIM$slot",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = if (isCustom) Color(0xFF10B981) else Color(0xFF3B82F6)
+                )
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        phoneNumber ?: "无法获取号码",
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Medium,
+                        color = if (phoneNumber != null) {
+                            MaterialTheme.colorScheme.onSurface
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        }
+                    )
+                    if (isCustom) {
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Surface(
+                            color = Color(0xFF10B981).copy(alpha = 0.2f),
+                            shape = RoundedCornerShape(4.dp)
+                        ) {
+                            Text(
+                                "自定义",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Color(0xFF10B981),
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+                }
+                carrierName?.takeIf { it.isNotBlank() }?.let {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        it,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(
+                    onClick = onEdit,
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Icon(
+                        Icons.Filled.Edit,
+                        contentDescription = "编辑",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
+                if (isCustom) {
+                    IconButton(
+                        onClick = onClear,
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Icon(
+                            Icons.Filled.Delete,
+                            contentDescription = "清除",
+                            tint = Color(0xFFEE4444)
+                        )
+                    }
+                } else if (phoneNumber != null) {
+                    Icon(
+                        Icons.Filled.CheckCircle,
+                        contentDescription = null,
+                        tint = Color(0xFF10B981)
+                    )
+                } else {
+                    Icon(
+                        Icons.Filled.Warning,
+                        contentDescription = null,
+                        tint = Color(0xFFF59E0B)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun EditSimPhoneDialog(
+    slot: Int,
+    currentPhoneNumber: String,
+    onDismiss: () -> Unit,
+    onSave: (String) -> Unit
+) {
+    var phoneNumber by remember { mutableStateOf(currentPhoneNumber) }
+    
+    ModernAlertDialog(
+        onDismissRequest = onDismiss,
+        title = "设置 SIM$slot 号码",
+        content = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    "如果无法自动获取本机号码，可以手动输入",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                OutlinedTextField(
+                    value = phoneNumber,
+                    onValueChange = { phoneNumber = it },
+                    label = { Text("本机号码") },
+                    placeholder = { Text("例如：13800138000") },
+                    modifier = Modifier.fillMaxWidth(),
+                    leadingIcon = {
+                        Icon(Icons.Outlined.Phone, contentDescription = null)
+                    },
+                    shape = RoundedCornerShape(12.dp),
+                    singleLine = true
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { onSave(phoneNumber) },
+                shape = RoundedCornerShape(12.dp)
+            ) { Text("保存") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("取消") }
+        }
+    )
 }
 
 fun getChannelTypeLabel(type: ChannelType): String = when (type) {

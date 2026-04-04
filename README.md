@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![Version](https://img.shields.io/badge/version-2.1.3-blue.svg)
+![Version](https://img.shields.io/badge/version-2.4.0-blue.svg)
 ![Android](https://img.shields.io/badge/Android-8.0%2B-brightgreen.svg)
 ![License](https://img.shields.io/badge/license-MIT-orange.svg)
 [![GitHub Stars](https://img.shields.io/github/stars/jinghong-me/sms-forwarder?style=social)](https://github.com/jinghong-me/sms-forwarder/stargazers)
@@ -20,6 +20,11 @@
 ### 🎯 核心功能
 - **多通道支持** - 企业微信、钉钉、飞书、通用 Webhook 四种转发通道
 - **关键词过滤** - 灵活的关键词规则配置，空关键词转发全部
+- **验证码提取** - 自动识别并突出显示短信验证码，方便复制
+- **本机号码识别** - 双卡设备支持识别接收短信号码，转发时显示本机号码
+- **自定义 SIM 号码** - 无法自动获取时支持手动输入本机号码
+- **可配置消息格式** - 灵活配置是否显示本机号码、发送者号码、验证码
+- **SIM 卡信息预览** - 前端显示 SIM 卡号码状态，提前预知能否获取
 - **消息去重** - 5秒内相同内容自动去重，避免重复转发
 - **智能重试** - 失败消息最多重试3次，指数退避策略（2s/4s/6s）
 - **持久化存储** - 失败消息保存本地，应用重启或网络恢复自动重试
@@ -43,7 +48,10 @@
 ### 最新版本
 | 版本 | 说明 | 下载链接 |
 |------|------|----------|
-| **v2.1.3** | 修复验证码识别错误，优化提取逻辑 | [Releases](https://github.com/jinghong-me/sms-forwarder/releases) |
+| **v2.4.0** | 新增自定义 SIM 号码功能，无法自动获取时支持手动输入 | [Releases](https://github.com/jinghong-me/sms-forwarder/releases) |
+| v2.3.0 | 新增消息格式配置选项、SIM 卡信息预览 | [Releases](https://github.com/jinghong-me/sms-forwarder/releases) |
+| v2.2.0 | 新增本机号码识别，双卡设备支持显示接收短信号码 | [Releases](https://github.com/jinghong-me/sms-forwarder/releases) |
+| v2.1.3 | 修复验证码识别错误，优化提取逻辑 | [Releases](https://github.com/jinghong-me/sms-forwarder/releases) |
 | v2.1.2 | 调整验证码显示顺序，优化消息格式 | [Releases](https://github.com/jinghong-me/sms-forwarder/releases) |
 | v2.1.0 | 验证码自动提取与突出显示 | [Releases](https://github.com/jinghong-me/sms-forwarder/releases) |
 | v2.0.2 | 统一消息前缀格式 | [Releases](https://github.com/jinghong-me/sms-forwarder/releases) |
@@ -169,7 +177,10 @@ A: 检查：
 
 | 版本 | 发布日期 | 说明 |
 |------|----------|------|
-| **v2.1.3** | 2026-04-04 | 修复验证码识别错误，优化提取逻辑 |
+| **v2.4.0** | 2026-04-04 | 新增自定义 SIM 号码功能，无法自动获取时支持手动输入 |
+| v2.3.0 | 2026-04-04 | 新增消息格式配置选项、SIM 卡信息预览 |
+| v2.2.0 | 2026-04-04 | 新增本机号码识别，双卡设备支持显示接收短信号码 |
+| v2.1.3 | 2026-04-04 | 修复验证码识别错误，优化提取逻辑 |
 | v2.1.2 | 2026-04-04 | 调整验证码显示顺序，优化消息格式 |
 | v2.1.0 | 2026-04-04 | 新增验证码自动提取与突出显示功能 |
 | v2.0.2 | - | 统一所有渠道消息前缀格式 |

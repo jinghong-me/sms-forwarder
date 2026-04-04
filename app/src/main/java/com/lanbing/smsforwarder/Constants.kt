@@ -34,6 +34,11 @@ object Constants {
     const val PREF_START_ON_BOOT = "start_on_boot"
     const val PREF_CHANNELS = "channels"
     const val PREF_KEYWORD_CONFIGS = "keyword_configs"
+    const val PREF_SHOW_RECEIVER_PHONE = "show_receiver_phone"
+    const val PREF_SHOW_SENDER_PHONE = "show_sender_phone"
+    const val PREF_HIGHLIGHT_VERIFICATION_CODE = "highlight_verification_code"
+    const val PREF_CUSTOM_SIM1_PHONE = "custom_sim1_phone"
+    const val PREF_CUSTOM_SIM2_PHONE = "custom_sim2_phone"
 
     // Network
     const val NETWORK_DEBOUNCE_MS = 2000L

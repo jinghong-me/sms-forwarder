@@ -1,10 +1,16 @@
 package com.lanbing.smsforwarder
 
+import android.Manifest
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import android.provider.Telephony
+import android.telephony.SubscriptionManager
+import android.telephony.TelephonyManager
 import android.util.Log
+import androidx.core.content.ContextCompat
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -58,6 +64,9 @@ class SmsReceiver : BroadcastReceiver() {
             val channelTarget: String,
             val sender: String,
             val content: String,
+            val receiverPhoneNumber: String?,
+            val showSenderPhone: Boolean,
+            val highlightVerificationCode: Boolean,
             val timestamp: Long,
             val retryCount: Int = 0
         ) {
@@ -69,6 +78,9 @@ class SmsReceiver : BroadcastReceiver() {
                 obj.put("channelTarget", channelTarget)
                 obj.put("sender", sender)
                 obj.put("content", content)
+                obj.put("receiverPhoneNumber", receiverPhoneNumber)
+                obj.put("showSenderPhone", showSenderPhone)
+                obj.put("highlightVerificationCode", highlightVerificationCode)
                 obj.put("timestamp", timestamp)
                 obj.put("retryCount", retryCount)
                 return obj
@@ -83,12 +95,15 @@ class SmsReceiver : BroadcastReceiver() {
                         channelTarget = obj.getString("channelTarget"),
                         sender = obj.getString("sender"),
                         content = obj.getString("content"),
+                        receiverPhoneNumber = obj.optString("receiverPhoneNumber", null),
+                        showSenderPhone = obj.optBoolean("showSenderPhone", true),
+                        highlightVerificationCode = obj.optBoolean("highlightVerificationCode", true),
                         timestamp = obj.getLong("timestamp"),
                         retryCount = obj.getInt("retryCount")
                     )
                 }
 
-                fun fromChannel(channel: Channel, sender: String, content: String, timestamp: Long, retryCount: Int = 0): FailedMessage {
+                fun fromChannel(channel: Channel, sender: String, content: String, receiverPhoneNumber: String?, showSenderPhone: Boolean, highlightVerificationCode: Boolean, timestamp: Long, retryCount: Int = 0): FailedMessage {
                     return FailedMessage(
                         channelId = channel.id,
                         channelName = channel.name,
@@ -96,6 +111,9 @@ class SmsReceiver : BroadcastReceiver() {
                         channelTarget = channel.target,
                         sender = sender,
                         content = content,
+                        receiverPhoneNumber = receiverPhoneNumber,
+                        showSenderPhone = showSenderPhone,
+                        highlightVerificationCode = highlightVerificationCode,
                         timestamp = timestamp,
                         retryCount = retryCount
                     )
@@ -163,7 +181,7 @@ class SmsReceiver : BroadcastReceiver() {
                         try {
                             val receiver = SmsReceiver()
                             val channel = failed.toChannel()
-                            val success = receiver.sendToWebhook(failed.channelTarget, failed.sender, failed.content, channel.type)
+                            val success = receiver.sendToWebhook(failed.channelTarget, failed.sender, failed.content, failed.receiverPhoneNumber, channel.type, failed.showSenderPhone, failed.highlightVerificationCode)
                             if (success) {
                                 LogStore.append(context, "重试转发成功 -> ${failed.channelName}")
                             } else {
@@ -190,6 +208,11 @@ class SmsReceiver : BroadcastReceiver() {
         val isEnabled = prefs.getBoolean(Constants.PREF_ENABLED, false)
         if (!isEnabled) return
 
+        // 读取配置项
+        val showReceiverPhone = prefs.getBoolean(Constants.PREF_SHOW_RECEIVER_PHONE, true)
+        val showSenderPhone = prefs.getBoolean(Constants.PREF_SHOW_SENDER_PHONE, true)
+        val highlightVerificationCode = prefs.getBoolean(Constants.PREF_HIGHLIGHT_VERIFICATION_CODE, true)
+
         val channels = loadChannels(prefs)
         val configs = loadConfigs(prefs)
 
@@ -201,11 +224,18 @@ class SmsReceiver : BroadcastReceiver() {
         val messages = Telephony.Sms.Intents.getMessagesFromIntent(intent)
         val sb = StringBuilder()
         var sender = ""
+        var subscriptionId = -1
         for (sms in messages) {
             sender = sms.displayOriginatingAddress ?: sender
             sb.append(sms.displayMessageBody)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP_MR1) {
+                subscriptionId = sms.subscriptionId
+            }
         }
         val fullMessage = normalizeContent(sb.toString())
+
+        // 获取接收短信的本机号码
+        val receiverPhoneNumber = if (showReceiverPhone) getReceiverPhoneNumber(context, subscriptionId) else null
 
         // 消息去重检查
         val messageKey = "${sender}_${fullMessage.hashCode()}"
@@ -256,7 +286,7 @@ class SmsReceiver : BroadcastReceiver() {
                                         try { Thread.sleep(backoff) } catch (_: InterruptedException) { }
                                     }
                                     try {
-                                        success = sendToWebhook(ch.target, sender, fullMessage, ch.type)
+                                        success = sendToWebhook(ch.target, sender, fullMessage, receiverPhoneNumber, ch.type, showSenderPhone, highlightVerificationCode)
                                     } catch (e: Exception) {
                                         Log.e(TAG, "send attempt ${attempt+1} failed to ${ch.target}", e)
                                     }
@@ -270,7 +300,7 @@ class SmsReceiver : BroadcastReceiver() {
                                     // 添加到失败队列等待网络恢复时重试
                                     synchronized(failedMessageLock) {
                                         if (failedMessages.size < Constants.MAX_FAILED_MESSAGES) {
-                                            failedMessages.add(FailedMessage.fromChannel(ch, sender, fullMessage, now))
+                                            failedMessages.add(FailedMessage.fromChannel(ch, sender, fullMessage, receiverPhoneNumber, showSenderPhone, highlightVerificationCode, now))
                                         }
                                     }
                                 }
@@ -308,12 +338,73 @@ class SmsReceiver : BroadcastReceiver() {
             .trim()
     }
 
-    internal fun sendToWebhook(webhookUrl: String, sender: String, content: String, type: ChannelType): Boolean {
+    /**
+     * 获取接收短信的本机号码
+     */
+    private fun getReceiverPhoneNumber(context: Context, subscriptionId: Int): String? {
+        try {
+            val prefs = context.getSharedPreferences(Constants.PREFS_NAME, Context.MODE_PRIVATE)
+            
+            // 优先使用用户自定义的 SIM 号码
+            if (subscriptionId != -1) {
+                val customSimPhone = if (subscriptionId == 1) {
+                    prefs.getString(Constants.PREF_CUSTOM_SIM1_PHONE, null)
+                } else {
+                    prefs.getString(Constants.PREF_CUSTOM_SIM2_PHONE, null)
+                }
+                if (!customSimPhone.isNullOrBlank()) {
+                    return customSimPhone
+                }
+            }
+
+            if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_PHONE_STATE) != PackageManager.PERMISSION_GRANTED) {
+                Log.d(TAG, "没有 READ_PHONE_STATE 权限，无法获取本机号码")
+                return null
+            }
+
+            val telephonyManager = context.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP_MR1 && subscriptionId != -1) {
+                val subscriptionManager = SubscriptionManager.from(context)
+                val subscriptionInfo = subscriptionManager.getActiveSubscriptionInfo(subscriptionId)
+                if (subscriptionInfo != null) {
+                    val number = subscriptionInfo.number
+                    if (!number.isNullOrBlank()) {
+                        return number
+                    }
+                }
+            }
+
+            // 回退方案：尝试获取默认的手机号码
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                val number = telephonyManager.line1Number
+                if (!number.isNullOrBlank()) {
+                    return number
+                }
+            } else {
+                @Suppress("DEPRECATION")
+                val number = telephonyManager.line1Number
+                if (!number.isNullOrBlank()) {
+                    return number
+                }
+            }
+
+            // 如果无法获取号码，尝试通过 subscriptionId 显示 SIM 卡槽信息
+            if (subscriptionId != -1) {
+                return "SIM卡${if (subscriptionId == 1) "1" else "2"}"
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "获取本机号码失败", e)
+        }
+        return null
+    }
+
+    internal fun sendToWebhook(webhookUrl: String, sender: String, content: String, receiverPhoneNumber: String?, type: ChannelType, showSenderPhone: Boolean, highlightVerificationCode: Boolean): Boolean {
         val json = when (type) {
-            ChannelType.FEISHU -> buildFeishuMessage(sender, content)
-            ChannelType.WECHAT -> buildWechatMessage(sender, content)
-            ChannelType.DINGTALK -> buildDingtalkMessage(sender, content)
-            ChannelType.GENERIC_WEBHOOK -> buildGenericMessage(sender, content)
+            ChannelType.FEISHU -> buildFeishuMessage(sender, content, receiverPhoneNumber, showSenderPhone, highlightVerificationCode)
+            ChannelType.WECHAT -> buildWechatMessage(sender, content, receiverPhoneNumber, showSenderPhone, highlightVerificationCode)
+            ChannelType.DINGTALK -> buildDingtalkMessage(sender, content, receiverPhoneNumber, showSenderPhone, highlightVerificationCode)
+            ChannelType.GENERIC_WEBHOOK -> buildGenericMessage(sender, content, receiverPhoneNumber, showSenderPhone, highlightVerificationCode)
         }
 
         val body = json.toString().toRequestBody("application/json; charset=utf-8".toMediaType())
@@ -362,47 +453,61 @@ class SmsReceiver : BroadcastReceiver() {
     /**
      * 构建消息内容，突出显示验证码
      */
-    private fun buildMessageWithHighlightedCode(sender: String, content: String): String {
-        val code = extractVerificationCode(content)
-        return if (code != null) {
-            "验证码: $code\n来自: $sender\n$content"
-        } else {
-            "来自: $sender\n$content"
+    private fun buildMessageWithHighlightedCode(sender: String, content: String, receiverPhoneNumber: String?, showSenderPhone: Boolean, highlightVerificationCode: Boolean): String {
+        val parts = mutableListOf<String>()
+        val code = if (highlightVerificationCode) extractVerificationCode(content) else null
+
+        if (code != null) {
+            parts.add("验证码: $code")
         }
+        if (receiverPhoneNumber != null) {
+            parts.add("本机: $receiverPhoneNumber")
+        }
+        if (showSenderPhone) {
+            parts.add("来自: $sender")
+        }
+        parts.add(content)
+
+        return parts.joinToString("\n")
     }
 
-    private fun buildWechatMessage(sender: String, content: String): JSONObject {
+    private fun buildWechatMessage(sender: String, content: String, receiverPhoneNumber: String?, showSenderPhone: Boolean, highlightVerificationCode: Boolean): JSONObject {
         val json = JSONObject()
         json.put("msgtype", "text")
         val text = JSONObject()
-        text.put("content", buildMessageWithHighlightedCode(sender, content))
+        text.put("content", buildMessageWithHighlightedCode(sender, content, receiverPhoneNumber, showSenderPhone, highlightVerificationCode))
         json.put("text", text)
         return json
     }
 
-    private fun buildDingtalkMessage(sender: String, content: String): JSONObject {
+    private fun buildDingtalkMessage(sender: String, content: String, receiverPhoneNumber: String?, showSenderPhone: Boolean, highlightVerificationCode: Boolean): JSONObject {
         val json = JSONObject()
         json.put("msgtype", "text")
         val text = JSONObject()
-        text.put("content", buildMessageWithHighlightedCode(sender, content))
+        text.put("content", buildMessageWithHighlightedCode(sender, content, receiverPhoneNumber, showSenderPhone, highlightVerificationCode))
         json.put("text", text)
         return json
     }
 
-    private fun buildFeishuMessage(sender: String, content: String): JSONObject {
+    private fun buildFeishuMessage(sender: String, content: String, receiverPhoneNumber: String?, showSenderPhone: Boolean, highlightVerificationCode: Boolean): JSONObject {
         val json = JSONObject()
         json.put("msg_type", "text")
         val text = JSONObject()
-        text.put("text", buildMessageWithHighlightedCode(sender, content))
+        text.put("text", buildMessageWithHighlightedCode(sender, content, receiverPhoneNumber, showSenderPhone, highlightVerificationCode))
         json.put("content", text)
         return json
     }
 
-    private fun buildGenericMessage(sender: String, content: String): JSONObject {
+    private fun buildGenericMessage(sender: String, content: String, receiverPhoneNumber: String?, showSenderPhone: Boolean, highlightVerificationCode: Boolean): JSONObject {
         val json = JSONObject()
-        json.put("sender", sender)
+        if (showSenderPhone) {
+            json.put("sender", sender)
+        }
+        json.put("receiver", receiverPhoneNumber)
         json.put("content", content)
-        json.put("verificationCode", extractVerificationCode(content))
+        if (highlightVerificationCode) {
+            json.put("verificationCode", extractVerificationCode(content))
+        }
         json.put("timestamp", System.currentTimeMillis())
         return json
     }
