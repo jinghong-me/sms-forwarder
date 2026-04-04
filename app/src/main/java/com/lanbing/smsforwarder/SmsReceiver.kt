@@ -340,7 +340,7 @@ class SmsReceiver : BroadcastReceiver() {
         val json = JSONObject()
         json.put("msgtype", "text")
         val text = JSONObject()
-        text.put("content", "【短信转发】\n来自: $sender\n$content")
+        text.put("content", "来自: $sender\n$content")
         json.put("text", text)
         return json
     }
@@ -349,7 +349,7 @@ class SmsReceiver : BroadcastReceiver() {
         val json = JSONObject()
         json.put("msg_type", "text")
         val text = JSONObject()
-        text.put("text", "【短信转发】\n来自: $sender\n$content")
+        text.put("text", "来自: $sender\n$content")
         json.put("content", text)
         return json
     }
