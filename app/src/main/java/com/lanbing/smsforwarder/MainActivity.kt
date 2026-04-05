@@ -1771,7 +1771,7 @@ fun AboutDialog(onDismiss: () -> Unit) {
                 HorizontalDivider()
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(
-                    "© 2026 惊鸿科技（济宁）有限公司",
+                    "© 2026 华昊科技有限公司",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center
