@@ -225,13 +225,35 @@ class SmsReceiver : BroadcastReceiver() {
         val sb = StringBuilder()
         var sender = ""
         var subscriptionId: Int? = null
+        
+        // 尝试从 intent 中获取 subscriptionId
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP_MR1) {
+            subscriptionId = intent.getIntExtra("subscription", -1)
+            if (subscriptionId == -1) {
+                subscriptionId = intent.getIntExtra("slot", -1)
+                if (subscriptionId != -1) {
+                    // slot 转换为 subscriptionId
+                    try {
+                        if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_GRANTED) {
+                            val subscriptionManager = SubscriptionManager.from(context)
+                            val activeSubscriptions = subscriptionManager.activeSubscriptionInfoList
+                            if (activeSubscriptions != null && activeSubscriptions.size > subscriptionId) {
+                                subscriptionId = activeSubscriptions[subscriptionId].subscriptionId
+                            }
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "转换 slot 为 subscriptionId 失败", e)
+                        subscriptionId = null
+                    }
+                } else {
+                    subscriptionId = null
+                }
+            }
+        }
+
         for (sms in messages) {
             sender = sms.displayOriginatingAddress ?: sender
             sb.append(sms.displayMessageBody)
-            // 尝试获取 subscriptionId
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP_MR1) {
-                subscriptionId = sms.subscriptionId
-            }
         }
         val fullMessage = normalizeContent(sb.toString())
 
@@ -348,6 +370,7 @@ class SmsReceiver : BroadcastReceiver() {
             val prefs = context.getSharedPreferences(Constants.PREFS_NAME, Context.MODE_PRIVATE)
             
             var simSlotIndex = 1 // 默认假设是 SIM1
+            var foundMatchingSim = false
             
             // 根据 subscriptionId 确定 SIM 卡槽位置
             if (subscriptionId != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP_MR1) {
@@ -358,6 +381,7 @@ class SmsReceiver : BroadcastReceiver() {
                         activeSubscriptions?.forEachIndexed { index, subInfo ->
                             if (subInfo.subscriptionId == subscriptionId) {
                                 simSlotIndex = index + 1 // slot 从 1 开始
+                                foundMatchingSim = true
                             }
                         }
                     }
@@ -379,39 +403,37 @@ class SmsReceiver : BroadcastReceiver() {
                 }
             }
 
-            // 如果没有自定义号码，尝试自动获取
-            if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_PHONE_STATE) != PackageManager.PERMISSION_GRANTED) {
-                Log.d(TAG, "没有 READ_PHONE_STATE 权限，无法获取本机号码")
-                return null
-            }
-
-            val telephonyManager = context.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
-
-            // 如果有 subscriptionId，尝试通过 subscriptionId 获取号码
-            if (subscriptionId != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP_MR1) {
-                try {
-                    val subscriptionManager = SubscriptionManager.from(context)
-                    val subInfo = subscriptionManager.getActiveSubscriptionInfo(subscriptionId)
-                    if (subInfo != null && !subInfo.number.isNullOrBlank()) {
-                        return subInfo.number
+            // 如果没有自定义号码，但找到了匹配的 SIM，尝试自动获取
+            if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_GRANTED) {
+                // 如果有 subscriptionId，尝试通过 subscriptionId 获取号码
+                if (subscriptionId != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP_MR1 && foundMatchingSim) {
+                    try {
+                        val subscriptionManager = SubscriptionManager.from(context)
+                        val subInfo = subscriptionManager.getActiveSubscriptionInfo(subscriptionId)
+                        if (subInfo != null && !subInfo.number.isNullOrBlank()) {
+                            return subInfo.number
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "通过 subscriptionId 获取号码失败", e)
                     }
-                } catch (e: Exception) {
-                    Log.e(TAG, "通过 subscriptionId 获取号码失败", e)
                 }
-            }
 
-            // 回退到默认的获取方式
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                val number = telephonyManager.line1Number
-                if (!number.isNullOrBlank()) {
-                    return number
+                // 回退到默认的获取方式
+                val telephonyManager = context.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    val number = telephonyManager.line1Number
+                    if (!number.isNullOrBlank()) {
+                        return number
+                    }
+                } else {
+                    @Suppress("DEPRECATION")
+                    val number = telephonyManager.line1Number
+                    if (!number.isNullOrBlank()) {
+                        return number
+                    }
                 }
             } else {
-                @Suppress("DEPRECATION")
-                val number = telephonyManager.line1Number
-                if (!number.isNullOrBlank()) {
-                    return number
-                }
+                Log.d(TAG, "没有 READ_PHONE_STATE 权限，无法自动获取本机号码")
             }
         } catch (e: Exception) {
             Log.e(TAG, "获取本机号码失败", e)
