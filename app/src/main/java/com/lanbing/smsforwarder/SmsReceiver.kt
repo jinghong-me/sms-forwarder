@@ -224,17 +224,40 @@ class SmsReceiver : BroadcastReceiver() {
         val messages = Telephony.Sms.Intents.getMessagesFromIntent(intent)
         val sb = StringBuilder()
         var sender = ""
-        var subscriptionId = -1
+        var subscriptionId: Int? = null
+        
+        // 尝试从 intent 中获取 subscriptionId
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP_MR1) {
+            subscriptionId = intent.getIntExtra("subscription", -1)
+            if (subscriptionId == -1) {
+                subscriptionId = intent.getIntExtra("slot", -1)
+                if (subscriptionId != -1) {
+                    // slot 转换为 subscriptionId
+                    try {
+                        if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_GRANTED) {
+                            val subscriptionManager = SubscriptionManager.from(context)
+                            val activeSubscriptions = subscriptionManager.activeSubscriptionInfoList
+                            if (activeSubscriptions != null && activeSubscriptions.size > subscriptionId) {
+                                subscriptionId = activeSubscriptions[subscriptionId].subscriptionId
+                            }
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "转换 slot 为 subscriptionId 失败", e)
+                        subscriptionId = null
+                    }
+                } else {
+                    subscriptionId = null
+                }
+            }
+        }
+
         for (sms in messages) {
             sender = sms.displayOriginatingAddress ?: sender
             sb.append(sms.displayMessageBody)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP_MR1) {
-                subscriptionId = sms.subscriptionId
-            }
         }
         val fullMessage = normalizeContent(sb.toString())
 
-        // 获取接收短信的本机号码（根据 subscriptionId 确定是 SIM1 还是 SIM2）
+        // 获取接收短信的本机号码
         val receiverPhoneNumber = if (showReceiverPhone) getReceiverPhoneNumber(context, subscriptionId) else null
 
         // 消息去重检查
@@ -340,93 +363,82 @@ class SmsReceiver : BroadcastReceiver() {
 
     /**
      * 获取接收短信的本机号码
-     * @param subscriptionId 接收短信的 SIM 卡的 subscriptionId
+     * @param subscriptionId SIM 卡的 subscriptionId，用于确定是哪个 SIM 卡接收的短信
      */
-    private fun getReceiverPhoneNumber(context: Context, subscriptionId: Int): String? {
+    private fun getReceiverPhoneNumber(context: Context, subscriptionId: Int?): String? {
         try {
             val prefs = context.getSharedPreferences(Constants.PREFS_NAME, Context.MODE_PRIVATE)
             
-            // 判断是 SIM1 还是 SIM2
-            val simSlot = getSimSlotFromSubscriptionId(context, subscriptionId)
+            var simSlotIndex = 1 // 默认假设是 SIM1
+            var foundMatchingSim = false
             
-            // 优先使用用户自定义的对应 SIM 卡号码
-            if (simSlot == 1) {
+            // 根据 subscriptionId 确定 SIM 卡槽位置
+            if (subscriptionId != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP_MR1) {
+                try {
+                    if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_GRANTED) {
+                        val subscriptionManager = SubscriptionManager.from(context)
+                        val activeSubscriptions = subscriptionManager.activeSubscriptionInfoList
+                        activeSubscriptions?.forEachIndexed { index, subInfo ->
+                            if (subInfo.subscriptionId == subscriptionId) {
+                                simSlotIndex = index + 1 // slot 从 1 开始
+                                foundMatchingSim = true
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "确定 SIM 卡槽位置失败", e)
+                }
+            }
+
+            // 根据 SIM 卡槽位置返回对应的自定义号码
+            if (simSlotIndex == 1) {
                 val customSim1Phone = prefs.getString(Constants.PREF_CUSTOM_SIM1_PHONE, null)
                 if (!customSim1Phone.isNullOrBlank()) {
                     return customSim1Phone
                 }
-            } else if (simSlot == 2) {
+            } else if (simSlotIndex == 2) {
                 val customSim2Phone = prefs.getString(Constants.PREF_CUSTOM_SIM2_PHONE, null)
                 if (!customSim2Phone.isNullOrBlank()) {
                     return customSim2Phone
                 }
             }
-            
-            // 如果对应 SIM 卡没有自定义，尝试另一个 SIM 卡
-            val customSim1Phone = prefs.getString(Constants.PREF_CUSTOM_SIM1_PHONE, null)
-            if (!customSim1Phone.isNullOrBlank()) {
-                return customSim1Phone
-            }
-            val customSim2Phone = prefs.getString(Constants.PREF_CUSTOM_SIM2_PHONE, null)
-            if (!customSim2Phone.isNullOrBlank()) {
-                return customSim2Phone
-            }
 
-            // 如果没有自定义号码，尝试自动获取
-            if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_PHONE_STATE) != PackageManager.PERMISSION_GRANTED) {
-                Log.d(TAG, "没有 READ_PHONE_STATE 权限，无法获取本机号码")
-                return null
-            }
+            // 如果没有自定义号码，但找到了匹配的 SIM，尝试自动获取
+            if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_GRANTED) {
+                // 如果有 subscriptionId，尝试通过 subscriptionId 获取号码
+                if (subscriptionId != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP_MR1 && foundMatchingSim) {
+                    try {
+                        val subscriptionManager = SubscriptionManager.from(context)
+                        val subInfo = subscriptionManager.getActiveSubscriptionInfo(subscriptionId)
+                        if (subInfo != null && !subInfo.number.isNullOrBlank()) {
+                            return subInfo.number
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "通过 subscriptionId 获取号码失败", e)
+                    }
+                }
 
-            val telephonyManager = context.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
-
-            // 尝试获取默认的手机号码
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                val number = telephonyManager.line1Number
-                if (!number.isNullOrBlank()) {
-                    return number
+                // 回退到默认的获取方式
+                val telephonyManager = context.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    val number = telephonyManager.line1Number
+                    if (!number.isNullOrBlank()) {
+                        return number
+                    }
+                } else {
+                    @Suppress("DEPRECATION")
+                    val number = telephonyManager.line1Number
+                    if (!number.isNullOrBlank()) {
+                        return number
+                    }
                 }
             } else {
-                @Suppress("DEPRECATION")
-                val number = telephonyManager.line1Number
-                if (!number.isNullOrBlank()) {
-                    return number
-                }
+                Log.d(TAG, "没有 READ_PHONE_STATE 权限，无法自动获取本机号码")
             }
         } catch (e: Exception) {
             Log.e(TAG, "获取本机号码失败", e)
         }
         return null
-    }
-    
-    /**
-     * 根据 subscriptionId 获取 SIM 卡槽位置（1 或 2）
-     * 返回 0 表示未知
-     */
-    private fun getSimSlotFromSubscriptionId(context: Context, subscriptionId: Int): Int {
-        if (subscriptionId == -1) {
-            return 0
-        }
-        
-        try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP_MR1) {
-                if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_GRANTED) {
-                    val subscriptionManager = SubscriptionManager.from(context)
-                    val activeSubscriptions = subscriptionManager.activeSubscriptionInfoList
-                    
-                    for (info in activeSubscriptions) {
-                        if (info.subscriptionId == subscriptionId) {
-                            // simSlotIndex 从 0 开始，返回 1 或 2
-                            return info.simSlotIndex + 1
-                        }
-                    }
-                }
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "获取 SIM 卡槽位置失败", e)
-        }
-        
-        return 0
     }
 
     internal fun sendToWebhook(webhookUrl: String, sender: String, content: String, receiverPhoneNumber: String?, type: ChannelType, showSenderPhone: Boolean, highlightVerificationCode: Boolean): Boolean {
