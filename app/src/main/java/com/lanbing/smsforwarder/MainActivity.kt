@@ -1808,7 +1808,7 @@ fun AboutDialog(onDismiss: () -> Unit) {
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    "版本 2.7.0",
+                    "版本 2.7.1",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -1841,7 +1841,7 @@ fun AboutDialog(onDismiss: () -> Unit) {
                                 val updateInfo = checkForUpdate(context)
                                 isCheckingUpdate = false
                                 if (updateInfo != null) {
-                                    val currentVersion = "2.7.0"
+                                    val currentVersion = "2.7.1"
                                     if (versionCompare(updateInfo.versionName, currentVersion) > 0) {
                                         showUpdateDialog = updateInfo
                                     } else {
@@ -1853,7 +1853,9 @@ fun AboutDialog(onDismiss: () -> Unit) {
                             }
                         },
                         modifier = Modifier.weight(1f),
-                        enabled = !isCheckingUpdate
+                        enabled = !isCheckingUpdate,
+                        shape = RoundedCornerShape(12.dp),
+                        contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp)
                     ) {
                         if (isCheckingUpdate) {
                             CircularProgressIndicator(
@@ -1872,7 +1874,7 @@ fun AboutDialog(onDismiss: () -> Unit) {
                         shape = RoundedCornerShape(12.dp),
                         contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp)
                     ) {
-                        Text("关闭", fontSize = 16.sp)
+                        Text("关闭")
                     }
                 }
             }
@@ -1981,20 +1983,23 @@ fun UpdateAvailableDialog(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    OutlinedButton(
-                        onClick = onDismiss,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text("稍后再说")
-                    }
                     Button(
                         onClick = onDownload,
                         modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(12.dp)
+                        shape = RoundedCornerShape(12.dp),
+                        contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp)
                     ) {
                         Icon(Icons.Outlined.Download, contentDescription = null)
                         Spacer(modifier = Modifier.width(6.dp))
                         Text("立即下载")
+                    }
+                    OutlinedButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp),
+                        contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp)
+                    ) {
+                        Text("稍后再说")
                     }
                 }
             }

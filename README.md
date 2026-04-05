@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![Version](https://img.shields.io/badge/version-2.7.0-blue.svg)
+![Version](https://img.shields.io/badge/version-2.7.1-blue.svg)
 ![Android](https://img.shields.io/badge/Android-5.0%2B-brightgreen.svg)
 ![License](https://img.shields.io/badge/license-MIT-orange.svg)
 [![GitHub Stars](https://img.shields.io/github/stars/jinghong-me/sms-forwarder?style=social)](https://github.com/jinghong-me/sms-forwarder/stargazers)
@@ -49,6 +49,7 @@
 ### 最新版本
 | 版本 | 说明 | 下载链接 |
 |------|------|----------|
+| **v2.7.1** | 优化更新对话框和关于对话框按钮样式，统一按钮大小和位置；新增检查更新功能，关于页面可手动检查更新；修复双卡设备 SIM 卡识别 bug，SIM2 收到的短信现在会正确显示 SIM2 的本机号码；优化 subscriptionId 获取方式，提高兼容性 | [Releases](https://github.com/jinghong-me/sms-forwarder/releases) |
 | **v2.7.0** | 新增检查更新功能，关于页面可手动检查更新；修复双卡设备 SIM 卡识别 bug，SIM2 收到的短信现在会正确显示 SIM2 的本机号码；优化 subscriptionId 获取方式，提高兼容性 | [Releases](https://github.com/jinghong-me/sms-forwarder/releases) |
 | **v2.6.4** | 修复双卡设备 SIM 卡识别 bug，SIM2 收到的短信现在会正确显示 SIM2 的本机号码；优化 subscriptionId 获取方式，提高兼容性 | [Releases](https://github.com/jinghong-me/sms-forwarder/releases) |
 | **v2.6.1** | 更新关于对话框，添加版权信息和软件说明；调整菜单布局，避免功能重复 | [Releases](https://github.com/jinghong-me/sms-forwarder/releases) |
