@@ -224,14 +224,18 @@ class SmsReceiver : BroadcastReceiver() {
         val messages = Telephony.Sms.Intents.getMessagesFromIntent(intent)
         val sb = StringBuilder()
         var sender = ""
+        var subscriptionId = -1
         for (sms in messages) {
             sender = sms.displayOriginatingAddress ?: sender
             sb.append(sms.displayMessageBody)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP_MR1) {
+                subscriptionId = sms.subscriptionId
+            }
         }
         val fullMessage = normalizeContent(sb.toString())
 
-        // 获取接收短信的本机号码
-        val receiverPhoneNumber = if (showReceiverPhone) getReceiverPhoneNumber(context) else null
+        // 获取接收短信的本机号码（根据 subscriptionId 确定是 SIM1 还是 SIM2）
+        val receiverPhoneNumber = if (showReceiverPhone) getReceiverPhoneNumber(context, subscriptionId) else null
 
         // 消息去重检查
         val messageKey = "${sender}_${fullMessage.hashCode()}"
@@ -336,18 +340,33 @@ class SmsReceiver : BroadcastReceiver() {
 
     /**
      * 获取接收短信的本机号码
+     * @param subscriptionId 接收短信的 SIM 卡的 subscriptionId
      */
-    private fun getReceiverPhoneNumber(context: Context): String? {
+    private fun getReceiverPhoneNumber(context: Context, subscriptionId: Int): String? {
         try {
             val prefs = context.getSharedPreferences(Constants.PREFS_NAME, Context.MODE_PRIVATE)
             
-            // 优先使用用户自定义的 SIM1 号码
+            // 判断是 SIM1 还是 SIM2
+            val simSlot = getSimSlotFromSubscriptionId(context, subscriptionId)
+            
+            // 优先使用用户自定义的对应 SIM 卡号码
+            if (simSlot == 1) {
+                val customSim1Phone = prefs.getString(Constants.PREF_CUSTOM_SIM1_PHONE, null)
+                if (!customSim1Phone.isNullOrBlank()) {
+                    return customSim1Phone
+                }
+            } else if (simSlot == 2) {
+                val customSim2Phone = prefs.getString(Constants.PREF_CUSTOM_SIM2_PHONE, null)
+                if (!customSim2Phone.isNullOrBlank()) {
+                    return customSim2Phone
+                }
+            }
+            
+            // 如果对应 SIM 卡没有自定义，尝试另一个 SIM 卡
             val customSim1Phone = prefs.getString(Constants.PREF_CUSTOM_SIM1_PHONE, null)
             if (!customSim1Phone.isNullOrBlank()) {
                 return customSim1Phone
             }
-            
-            // 如果 SIM1 没有自定义，尝试 SIM2
             val customSim2Phone = prefs.getString(Constants.PREF_CUSTOM_SIM2_PHONE, null)
             if (!customSim2Phone.isNullOrBlank()) {
                 return customSim2Phone
@@ -378,6 +397,36 @@ class SmsReceiver : BroadcastReceiver() {
             Log.e(TAG, "获取本机号码失败", e)
         }
         return null
+    }
+    
+    /**
+     * 根据 subscriptionId 获取 SIM 卡槽位置（1 或 2）
+     * 返回 0 表示未知
+     */
+    private fun getSimSlotFromSubscriptionId(context: Context, subscriptionId: Int): Int {
+        if (subscriptionId == -1) {
+            return 0
+        }
+        
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP_MR1) {
+                if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_GRANTED) {
+                    val subscriptionManager = SubscriptionManager.from(context)
+                    val activeSubscriptions = subscriptionManager.activeSubscriptionInfoList
+                    
+                    for (info in activeSubscriptions) {
+                        if (info.subscriptionId == subscriptionId) {
+                            // simSlotIndex 从 0 开始，返回 1 或 2
+                            return info.simSlotIndex + 1
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "获取 SIM 卡槽位置失败", e)
+        }
+        
+        return 0
     }
 
     internal fun sendToWebhook(webhookUrl: String, sender: String, content: String, receiverPhoneNumber: String?, type: ChannelType, showSenderPhone: Boolean, highlightVerificationCode: Boolean): Boolean {
