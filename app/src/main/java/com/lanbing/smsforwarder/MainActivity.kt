@@ -1,6 +1,5 @@
 /*
  * 短信转发助手
- * 版本：V2.7.2
  *
  * 著作权人：华昊科技有限公司
  * 开发者：王士辉
@@ -80,6 +79,7 @@ class MainActivity : ComponentActivity() {
 
     private lateinit var requestSmsPermissionLauncher: ActivityResultLauncher<String>
     private lateinit var requestNotifPermissionLauncher: ActivityResultLauncher<String>
+    private var onPermissionChanged: (() -> Unit)? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -88,16 +88,19 @@ class MainActivity : ComponentActivity() {
         requestSmsPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
             if (granted) Toast.makeText(this, "短信权限已授权", Toast.LENGTH_SHORT).show()
             else Toast.makeText(this, "请授予短信权限以接收短信", Toast.LENGTH_LONG).show()
+            onPermissionChanged?.invoke()
         }
 
         requestNotifPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
             if (granted) Toast.makeText(this, "通知权限已授权", Toast.LENGTH_SHORT).show()
             else Toast.makeText(this, "请允许通知权限以显示常驻通知", Toast.LENGTH_LONG).show()
+            onPermissionChanged?.invoke()
         }
 
         setContent {
             val isDarkTheme = isSystemInDarkTheme()
             val colorScheme = if (isDarkTheme) darkColorScheme() else lightColorScheme()
+            var permissionUpdateTrigger by remember { mutableStateOf(0) }
 
             MaterialTheme(
                 colorScheme = colorScheme,
@@ -116,7 +119,12 @@ class MainActivity : ComponentActivity() {
                     } catch (_: Throwable) {}
                 }
 
+                SideEffect {
+                    onPermissionChanged = { permissionUpdateTrigger++ }
+                }
+
                 SmsForwarderApp(
+                    permissionUpdateTrigger = permissionUpdateTrigger,
                     onRequestSmsPermission = { requestSmsPermissionLauncher.launch(Manifest.permission.RECEIVE_SMS) },
                     onRequestNotificationPermission = {
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -168,6 +176,7 @@ fun isValidWebhookUrl(url: String): Boolean {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SmsForwarderApp(
+    permissionUpdateTrigger: Int,
     onRequestSmsPermission: () -> Unit,
     onRequestNotificationPermission: () -> Unit,
     onStartService: () -> Unit,
@@ -223,15 +232,27 @@ fun SmsForwarderApp(
         "日志" to Icons.Default.History
     )
 
-    // Permission states
-    val smsGranted = ContextCompat.checkSelfPermission(context, Manifest.permission.RECEIVE_SMS) == PackageManager.PERMISSION_GRANTED
-    val notifGranted = NotificationManagerCompat.from(context).areNotificationsEnabled()
+    // Permission states (use key to trigger recomposition)
+    val smsGranted by remember(permissionUpdateTrigger) {
+        derivedStateOf {
+            ContextCompat.checkSelfPermission(context, Manifest.permission.RECEIVE_SMS) == PackageManager.PERMISSION_GRANTED
+        }
+    }
+    val notifGranted by remember(permissionUpdateTrigger) {
+        derivedStateOf {
+            NotificationManagerCompat.from(context).areNotificationsEnabled()
+        }
+    }
 
     // Battery optimization state
     val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
-    val isIgnoringBatteryOptimizations = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-        powerManager.isIgnoringBatteryOptimizations(context.packageName)
-    } else true
+    val isIgnoringBatteryOptimizations by remember(permissionUpdateTrigger) {
+        derivedStateOf {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                powerManager.isIgnoringBatteryOptimizations(context.packageName)
+            } else true
+        }
+    }
 
     // Page indicator colors
     val pageColors = listOf(
@@ -1730,6 +1751,15 @@ fun TestRuleDialog(
 
 @Composable
 fun AboutDialog(onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    val packageManager = context.packageManager
+    val packageName = context.packageName
+    val versionName = try {
+        packageManager.getPackageInfo(packageName, 0).versionName
+    } catch (e: Exception) {
+        "未知版本"
+    }
+
     Dialog(onDismissRequest = onDismiss) {
         Card(
             modifier = Modifier
@@ -1767,7 +1797,7 @@ fun AboutDialog(onDismiss: () -> Unit) {
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    "版本 2.7.2",
+                    "版本 $versionName",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -1781,6 +1811,24 @@ fun AboutDialog(onDismiss: () -> Unit) {
                 Spacer(modifier = Modifier.height(16.dp))
                 HorizontalDivider()
                 Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    "官方网站：https://smsforwarder.cn/",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.clickable {
+                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://smsforwarder.cn/"))
+                        context.startActivity(intent)
+                    }
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    "备案号：鲁ICP备2026012160号-1",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center
+                )
+                Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     "© 2026 华昊科技有限公司",
                     style = MaterialTheme.typography.bodySmall,
