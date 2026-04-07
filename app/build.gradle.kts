@@ -51,7 +51,7 @@ android {
             isMinifyEnabled = false
             isShrinkResources = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            signingConfig = signingConfigs.getByName("release")
+            // debug 构建不使用 release 签名，避免 CI 构建失败
         }
         release {
             isMinifyEnabled = true
