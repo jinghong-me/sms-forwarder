@@ -138,12 +138,10 @@ class BatteryReceiver : BroadcastReceiver() {
 
     private fun buildFeishuMessage(message: String): JSONObject {
         val json = JSONObject()
-        val content = JSONObject()
         val text = JSONObject()
         text.put("text", message)
-        content.put("text", text)
         json.put("msg_type", "text")
-        json.put("content", content)
+        json.put("content", text)
         return json
     }
 
