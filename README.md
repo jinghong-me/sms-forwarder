@@ -1,4 +1,4 @@
-# 短信转发助手 (SmsForwarder)
+# 短信转发助手 (SmsForwarder.cn)
 
 <div align="center">
 
