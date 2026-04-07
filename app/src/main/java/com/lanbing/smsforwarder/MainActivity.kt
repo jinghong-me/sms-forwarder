@@ -196,6 +196,9 @@ fun SmsForwarderApp(
     var showReceiverPhone by remember { mutableStateOf(prefs.getBoolean(Constants.PREF_SHOW_RECEIVER_PHONE, true)) }
     var showSenderPhone by remember { mutableStateOf(prefs.getBoolean(Constants.PREF_SHOW_SENDER_PHONE, true)) }
     var highlightVerificationCode by remember { mutableStateOf(prefs.getBoolean(Constants.PREF_HIGHLIGHT_VERIFICATION_CODE, true)) }
+    var batteryReminderEnabled by remember { mutableStateOf(prefs.getBoolean(Constants.PREF_BATTERY_REMINDER_ENABLED, false)) }
+    var lowBatteryThreshold by remember { mutableStateOf(prefs.getInt(Constants.PREF_LOW_BATTERY_THRESHOLD, Constants.DEFAULT_LOW_BATTERY_THRESHOLD)) }
+    var highBatteryThreshold by remember { mutableStateOf(prefs.getInt(Constants.PREF_HIGH_BATTERY_THRESHOLD, Constants.DEFAULT_HIGH_BATTERY_THRESHOLD)) }
 
     var channels by remember { mutableStateOf(loadChannels(prefs)) }
     var configs by remember { mutableStateOf(loadConfigs(prefs)) }
@@ -513,6 +516,22 @@ fun SmsForwarderApp(
                             highlightVerificationCode = it
                             prefs.edit().putBoolean(Constants.PREF_HIGHLIGHT_VERIFICATION_CODE, highlightVerificationCode).apply()
                             if (highlightVerificationCode) LogStore.append(context, "已开启突出显示验证码") else LogStore.append(context, "已关闭突出显示验证码")
+                        },
+                        batteryReminderEnabled = batteryReminderEnabled,
+                        onBatteryReminderEnabledChange = {
+                            batteryReminderEnabled = it
+                            prefs.edit().putBoolean(Constants.PREF_BATTERY_REMINDER_ENABLED, batteryReminderEnabled).apply()
+                            if (batteryReminderEnabled) LogStore.append(context, "已开启电量提醒") else LogStore.append(context, "已关闭电量提醒")
+                        },
+                        lowBatteryThreshold = lowBatteryThreshold,
+                        onLowBatteryThresholdChange = {
+                            lowBatteryThreshold = it
+                            prefs.edit().putInt(Constants.PREF_LOW_BATTERY_THRESHOLD, lowBatteryThreshold).apply()
+                        },
+                        highBatteryThreshold = highBatteryThreshold,
+                        onHighBatteryThresholdChange = {
+                            highBatteryThreshold = it
+                            prefs.edit().putInt(Constants.PREF_HIGH_BATTERY_THRESHOLD, highBatteryThreshold).apply()
                         },
                         onShowTestDialog = { showTestDialog = true },
                         permissionUpdateTrigger = permissionUpdateTrigger
@@ -2299,6 +2318,12 @@ fun SettingsTab(
     onShowSenderPhoneChange: (Boolean) -> Unit,
     highlightVerificationCode: Boolean,
     onHighlightVerificationCodeChange: (Boolean) -> Unit,
+    batteryReminderEnabled: Boolean,
+    onBatteryReminderEnabledChange: (Boolean) -> Unit,
+    lowBatteryThreshold: Int,
+    onLowBatteryThresholdChange: (Int) -> Unit,
+    highBatteryThreshold: Int,
+    onHighBatteryThresholdChange: (Int) -> Unit,
     onShowTestDialog: () -> Unit,
     permissionUpdateTrigger: Int
 ) {
@@ -2312,6 +2337,122 @@ fun SettingsTab(
         // SIM 卡信息卡片
         item {
             SimCardInfoCard(permissionUpdateTrigger)
+        }
+
+        // 电量提醒配置
+        item {
+            ModernCard(
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(20.dp)) {
+                    Text(
+                        "电量提醒",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // 电量提醒开关
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(
+                            Icons.Outlined.BatteryAlert,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                "开启电量提醒",
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = FontWeight.Medium
+                            )
+                            Text(
+                                "电量变化时发送通知提醒",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = batteryReminderEnabled,
+                            onCheckedChange = onBatteryReminderEnabledChange
+                        )
+                    }
+
+                    if (batteryReminderEnabled) {
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        // 低电量阈值
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            Text(
+                                "低电量提醒阈值",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(
+                                    text = "$lowBatteryThreshold%",
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Slider(
+                                    value = lowBatteryThreshold.toFloat(),
+                                    onValueChange = { onLowBatteryThresholdChange(it.toInt()) },
+                                    valueRange = 5f..50f,
+                                    steps = 8,
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                            Text(
+                                "当电量低于此阈值时提醒",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        // 高电量阈值
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            Text(
+                                "高电量提醒阈值",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(
+                                    text = "$highBatteryThreshold%",
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Slider(
+                                    value = highBatteryThreshold.toFloat(),
+                                    onValueChange = { onHighBatteryThresholdChange(it.toInt()) },
+                                    valueRange = 50f..100f,
+                                    steps = 8,
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                            Text(
+                                "当电量高于此阈值时提醒",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            }
         }
 
         // 消息格式配置
