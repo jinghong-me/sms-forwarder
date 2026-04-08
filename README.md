@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![Version](https://img.shields.io/badge/version-2.7.7-blue.svg)
+![Version](https://img.shields.io/badge/version-2.7.8-blue.svg)
 ![Android](https://img.shields.io/badge/Android-5.0%2B-brightgreen.svg)
 ![License](https://img.shields.io/badge/license-MIT-orange.svg)
 [![GitHub Stars](https://img.shields.io/github/stars/jinghong-me/smsforwarder.cn?style=social)](https://github.com/jinghong-me/smsforwarder.cn/stargazers)
@@ -28,7 +28,7 @@
 - **消息去重** - 5秒内相同内容自动去重，避免重复转发
 - **智能重试** - 失败消息最多重试3次，指数退避策略（2s/4s/6s）
 - **持久化存储** - 失败消息保存本地，应用重启或网络恢复自动重试
-- **电量提醒** - 低电量/高电量提醒，通过配置的 Webhook 通道发送
+- **电量提醒** - 低电量/高电量提醒，可独立配置开关和阈值，通过配置的 Webhook 通道发送
 
 ### 🛡️ 可靠性设计
 - **前台服务常驻** - 提高在厂商定制 ROM（如 HyperOS）上的存活率
@@ -49,7 +49,7 @@
 ### 最新版本
 | 版本 | 说明 | 下载链接 |
 |------|------|----------|
-| **v2.7.8** | 电量提醒消息添加SIM卡手机号标识，便于区分设备；修复飞书消息格式问题 | [Releases](https://github.com/jinghong-me/smsforwarder.cn/releases) |
+| **v2.7.8** | 电量提醒消息添加SIM卡手机号标识，便于区分设备；修复飞书消息格式问题；低电量和高电量提醒可独立配置开关和阈值 | [Releases](https://github.com/jinghong-me/smsforwarder.cn/releases) |
 | **v2.7.7** | 修复SIM卡设置页面电话权限状态不实时更新问题；添加电话权限友好提示；添加开机自启动友好提示；更新隐私政策；新增电量提醒功能；优化APK大小；增强代码健壮性 | [Releases](https://github.com/jinghong-me/smsforwarder.cn/releases) |
 | **v2.7.6** | 修复首页权限状态实时更新问题；关于页面自动获取版本号；添加官方网址和备案号；删除版权信息中的版本号 | [Releases](https://github.com/jinghong-me/smsforwarder.cn/releases) |
 | **v2.7.5** | 更新签名证书，准备 APP 备案 | [Releases](https://github.com/jinghong-me/smsforwarder.cn/releases) |
@@ -186,32 +186,6 @@ A: 检查：
 
 ---
 
-## 📝 变更记录
-
-| 版本 | 发布日期 | 说明 |
-|------|----------|------|
-| **v2.6.4** | 2026-04-05 | 修复双卡设备 SIM 卡识别 bug，SIM2 收到的短信现在会正确显示 SIM2 的本机号码；优化 subscriptionId 获取方式，提高兼容性 |
-| **v2.6.1** | 2026-04-04 | 更新关于对话框，添加版权信息和软件说明；调整菜单布局，避免功能重复 |
-| **v2.6.0** | 2026-04-04 | 降低最低支持版本到 Android 5.0 (API 21)，支持更多设备 |
-| **v2.5.x** | 2026-04-04 | 新增底部导航栏、自定义 SIM 号码、消息格式配置等功能 |
-| **v2.4.x** | 2026-04-04 | 新增自定义 SIM 号码功能、SIM 卡信息预览 |
-| **v2.3.x** | 2026-04-04 | 新增消息格式配置、本机号码识别 |
-| **v2.2.x** | 2026-04-04 | 验证码自动提取与突出显示 |
-| **v2.1.x** | - | 统一消息前缀格式 |
-| **v2.0.x** | - | 多关键词、多通道支持 |
-| **v1.x** | - | 初始版本 |
-
----
-
-## 📞 联系方式
-
-- **GitHub Issues**：[提交问题](https://github.com/jinghong-me/smsforwarder.cn/issues)
-- **问题反馈请附上**：
-  - 设备型号与系统版本
-  - 完整的 adb logcat
-  - 复现步骤
-
----
 
 <div align="center">
 
