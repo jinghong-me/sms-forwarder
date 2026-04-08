@@ -2401,7 +2401,7 @@ fun SettingsTab(
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Icon(
-                                Icons.Outlined.Battery20,
+                                Icons.Outlined.BatteryAlert,
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant
                             )
