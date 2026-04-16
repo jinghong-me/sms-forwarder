@@ -1399,7 +1399,7 @@ fun AboutDialog(onDismiss: () -> Unit) {
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    "备案号：鲁ICP备2026012160号-1",
+                    "备案号：鲁ICP备2026018166号-2A",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center
